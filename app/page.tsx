@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import SignInButton from '@/components/SignInButton';
+import Link from 'next/link';
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -16,6 +17,9 @@ export default async function HomePage() {
         <h1 className="text-4xl font-black text-white mb-2 tracking-tight">MVP Summit Bingo</h1>
         <p className="text-blue-200 mb-8 text-lg">Sign in with your Microsoft account to play!</p>
         <SignInButton />
+        <div className="mt-4">
+
+        </div>
       </div>
     </main>
   );

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import BingoCard from '@/components/BingoCard';
 import WinBanner from '@/components/WinBanner';
 import { CardWithProgress, BingoProgress } from '@/lib/types';
+import { detectLines, checkHouse, checkBingo } from '@/lib/bingo';
 
 export default function PlayPage() {
   const { data: session, status } = useSession();
@@ -14,6 +15,19 @@ export default function PlayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [houseBannerDismissed, setHouseBannerDismissed] = useState(false);
+
+  const applyProgressFromMarks = useCallback((base: BingoProgress, markedIndexes: number[]): BingoProgress => {
+    const linesCompleted = detectLines(markedIndexes).length;
+    return {
+      ...base,
+      markedIndexes,
+      linesCompleted,
+      hasHouse: checkHouse(markedIndexes),
+      hasBingo: checkBingo(markedIndexes),
+      updatedAt: new Date().toISOString(),
+    };
+  }, []);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -37,6 +51,12 @@ export default function PlayPage() {
     }
   }, [status]);
 
+  useEffect(() => {
+    if (!progress?.hasHouse) {
+      setHouseBannerDismissed(false);
+    }
+  }, [progress?.hasHouse]);
+
   const handleToggle = useCallback(async (index: number, marked: boolean) => {
     if (toggling) return;
     setToggling(true);
@@ -47,7 +67,7 @@ export default function PlayPage() {
       const markedIndexes = marked
         ? [...prev.markedIndexes, index]
         : prev.markedIndexes.filter((i) => i !== index);
-      return { ...prev, markedIndexes };
+      return applyProgressFromMarks(prev, markedIndexes);
     });
 
     try {
@@ -66,12 +86,12 @@ export default function PlayPage() {
         const markedIndexes = marked
           ? prev.markedIndexes.filter((i) => i !== index)
           : [...prev.markedIndexes, index];
-        return { ...prev, markedIndexes };
+        return applyProgressFromMarks(prev, markedIndexes);
       });
     } finally {
       setToggling(false);
     }
-  }, [toggling]);
+  }, [toggling, applyProgressFromMarks]);
 
   if (status === 'loading' || loading) {
     return (
@@ -105,13 +125,20 @@ export default function PlayPage() {
     <main className="min-h-screen bg-gray-50">
       {/* Banners */}
       <WinBanner type="bingo" visible={progress.hasBingo} />
-      {!progress.hasBingo && <WinBanner type="house" visible={progress.hasHouse} />}
+      {!progress.hasBingo && (
+        <WinBanner
+          type="house"
+          visible={progress.hasHouse && !houseBannerDismissed}
+          onClose={() => setHouseBannerDismissed(true)}
+        />
+      )}
 
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">🎯 MVP Summit Bingo</h1>
           <div className="flex items-center gap-3">
+            <a href="/phrases" className="text-sm text-blue-600 hover:underline font-medium">Phrases</a>
             {user?.roles?.includes('admin') && (
               <a href="/admin" className="text-sm text-blue-600 hover:underline font-medium">Admin</a>
             )}

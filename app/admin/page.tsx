@@ -78,6 +78,7 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-2xl font-black">🔧 Admin Dashboard</h1>
           <div className="flex gap-3">
+            <a href="/phrases" className="text-sm text-blue-600 hover:underline">Phrases</a>
             <a href="/play" className="text-sm text-blue-600 hover:underline">Play</a>
             <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-gray-600">Sign Out</button>
           </div>

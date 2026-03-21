@@ -1,4 +1,5 @@
 import { Phrase } from './types';
+import { logError } from './logger';
 
 export const WINNING_LINES: number[][] = [
   // Horizontal
@@ -34,9 +35,14 @@ export function checkBingo(markedIndexes: number[]): boolean {
 export function generateCard(phrases: Phrase[]): string[] {
   const active = phrases.filter((p) => p.isActive);
   if (active.length < 25) {
-    throw new Error(
+    const error = new Error(
       `Not enough active phrases to generate a card. Need 25, got ${active.length}.`
     );
+    logError('Card generation failed due to insufficient active phrases', error, {
+      activeCount: active.length,
+      totalCount: phrases.length,
+    });
+    throw error;
   }
   const shuffled = [...active];
   for (let i = shuffled.length - 1; i > 0; i--) {
