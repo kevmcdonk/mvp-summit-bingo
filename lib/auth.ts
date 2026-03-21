@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile) {
-        token.userId = (profile as Record<string, unknown>).oid as string ?? token.sub ?? '';
+        token.userId = ((profile as Record<string, unknown>).oid as string | undefined) ?? token.sub ?? '';
         token.email = profile.email ?? token.email ?? '';
         const adminEmails = getAdminEmails();
         const email = (token.email as string ?? '').toLowerCase();
