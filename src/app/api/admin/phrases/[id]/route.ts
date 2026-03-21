@@ -3,7 +3,7 @@ import { getSession, isAdmin } from '@/lib/auth';
 import { getPhrasesContainer } from '@/lib/cosmos';
 import { Phrase } from '@/types';
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -19,9 +19,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
+  const { id } = await params;
   try {
     const container = getPhrasesContainer();
-    const { resource } = await container.item(params.id, params.id).read<Phrase>();
+    const { resource } = await container.item(id, id).read<Phrase>();
     if (!resource) {
       return NextResponse.json({ error: 'Phrase not found' }, { status: 404 });
     }
@@ -29,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       ...resource,
       ...body,
     };
-    await container.item(params.id, params.id).replace(updated);
+    await container.item(id, id).replace(updated);
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating phrase:', error);
@@ -37,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,9 +47,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const { id } = await params;
   try {
     const container = getPhrasesContainer();
-    await container.item(params.id, params.id).delete();
+    await container.item(id, id).delete();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting phrase:', error);
