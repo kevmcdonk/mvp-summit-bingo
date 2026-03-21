@@ -35,5 +35,6 @@ export async function getSession() {
 export function isAdmin(email: string | null | undefined): boolean {
   if (!email) return false;
   const allowlist = process.env.ADMIN_EMAIL_ALLOWLIST || '';
+  if (!allowlist.trim()) return false;
   return allowlist.split(',').map((e) => e.trim().toLowerCase()).includes(email.toLowerCase());
 }

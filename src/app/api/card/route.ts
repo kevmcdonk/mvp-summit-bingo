@@ -88,17 +88,20 @@ export async function GET() {
       await progressContainer.items.create(progress);
     }
 
-    // Fetch phrases details
+    // Fetch phrases details in a single query
     const phrasesContainer = getPhrasesContainer();
-    const phraseDetails: Phrase[] = [];
-    for (const phraseId of card.phrases) {
-      try {
-        const { resource } = await phrasesContainer.item(phraseId, phraseId).read<Phrase>();
-        if (resource) phraseDetails.push(resource);
-      } catch {
-        phraseDetails.push({ id: phraseId, text: 'Unknown phrase', isActive: true, category: null });
-      }
-    }
+    const phraseIdList = card.phrases.map((id, i) => `@id${i}`).join(', ');
+    const phraseParams = card.phrases.map((id, i) => ({ name: `@id${i}`, value: id }));
+    const phraseDetailsResult = await phrasesContainer.items
+      .query<Phrase>({
+        query: `SELECT * FROM c WHERE c.id IN (${phraseIdList})`,
+        parameters: phraseParams,
+      })
+      .fetchAll();
+    const phraseMap = new Map(phraseDetailsResult.resources.map((p) => [p.id, p]));
+    const phraseDetails: Phrase[] = card.phrases.map(
+      (id) => phraseMap.get(id) ?? { id, text: 'Unknown phrase', isActive: true, category: null }
+    );
 
     const result: CardWithProgress = { card, progress, phrases: phraseDetails };
     return NextResponse.json(result);
