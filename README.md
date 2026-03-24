@@ -103,3 +103,7 @@ npm test
 | `npm run start` | Start the production server |
 | `npm run lint` | Run ESLint |
 | `npm test` | Run Jest tests |
+
+
+## Process
+For any chances, run them through the dev branch first
