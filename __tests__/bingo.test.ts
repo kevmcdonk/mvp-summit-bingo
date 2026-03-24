@@ -1,5 +1,5 @@
-import { detectLines, checkHouse, checkBingo, generateCard, WINNING_LINES } from '../lib/bingo';
-import { Phrase } from '../lib/types';
+import { detectLines, checkHouse, checkBingo, generateCard, getLeaderboardRank, WINNING_LINES } from '../lib/bingo';
+import { Phrase, BingoProgress } from '../lib/types';
 
 function makePhrase(id: string, text: string, isActive = true): Phrase {
   return { id, text, isActive, category: null };
@@ -135,5 +135,68 @@ describe('generateCard', () => {
   it('throws when all phrases inactive', () => {
     const phrases = Array.from({ length: 30 }, (_, i) => makePhrase(`id-${i}`, `Phrase ${i}`, false));
     expect(() => generateCard(phrases)).toThrow();
+  });
+});
+
+describe('getLeaderboardRank', () => {
+  function makeProgress(
+    userId: string,
+    markedCount: number,
+    linesCompleted: number,
+    hasBingo: boolean,
+  ): BingoProgress {
+    return {
+      id: userId,
+      userId,
+      cardId: 'card-1',
+      markedIndexes: Array.from({ length: markedCount }, (_, i) => i),
+      linesCompleted,
+      hasHouse: linesCompleted > 0,
+      hasBingo,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  it('returns rank 1 for user with bingo when others do not', () => {
+    const progressList = [
+      makeProgress('user-1', 25, 12, true),
+      makeProgress('user-2', 10, 1, false),
+      makeProgress('user-3', 5, 0, false),
+    ];
+    const { rank, total } = getLeaderboardRank('user-1', progressList);
+    expect(rank).toBe(1);
+    expect(total).toBe(3);
+  });
+
+  it('ranks by lines completed when bingo status is equal', () => {
+    const progressList = [
+      makeProgress('user-1', 10, 2, false),
+      makeProgress('user-2', 15, 4, false),
+      makeProgress('user-3', 8, 1, false),
+    ];
+    const { rank } = getLeaderboardRank('user-1', progressList);
+    expect(rank).toBe(2);
+  });
+
+  it('ranks by marked count when lines and bingo are equal', () => {
+    const progressList = [
+      makeProgress('user-1', 5, 1, false),
+      makeProgress('user-2', 10, 1, false),
+    ];
+    const { rank } = getLeaderboardRank('user-1', progressList);
+    expect(rank).toBe(2);
+  });
+
+  it('returns rank beyond total when userId not found', () => {
+    const progressList = [makeProgress('user-1', 5, 1, false)];
+    const { rank, total } = getLeaderboardRank('unknown-user', progressList);
+    expect(rank).toBe(2);
+    expect(total).toBe(1);
+  });
+
+  it('handles empty progress list', () => {
+    const { rank, total } = getLeaderboardRank('user-1', []);
+    expect(rank).toBe(1);
+    expect(total).toBe(0);
   });
 });

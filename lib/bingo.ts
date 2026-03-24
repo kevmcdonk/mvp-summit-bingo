@@ -1,4 +1,4 @@
-import { Phrase } from './types';
+import { Phrase, BingoProgress } from './types';
 import { logError } from './logger';
 
 export const WINNING_LINES: number[][] = [
@@ -50,4 +50,18 @@ export function generateCard(phrases: Phrase[]): string[] {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled.slice(0, 25).map((p) => p.id);
+}
+
+export function getLeaderboardRank(
+  userId: string,
+  allProgress: BingoProgress[],
+): { rank: number; total: number } {
+  const sorted = [...allProgress].sort((a, b) => {
+    if (a.hasBingo !== b.hasBingo) return a.hasBingo ? -1 : 1;
+    if (a.linesCompleted !== b.linesCompleted) return b.linesCompleted - a.linesCompleted;
+    return b.markedIndexes.length - a.markedIndexes.length;
+  });
+  const index = sorted.findIndex((p) => p.userId === userId);
+  // Users with no progress record are placed after all ranked players
+  return { rank: index >= 0 ? index + 1 : sorted.length + 1, total: sorted.length };
 }
