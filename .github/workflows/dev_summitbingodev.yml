@@ -12,6 +12,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_FEATURE_FLAG: ${{ vars.NEXT_PUBLIC_FEATURE_FLAG }}
+      NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+      AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+      AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      COSMOS_ENDPOINT: ${{ secrets.COSMOS_ENDPOINT }}
+      COSMOS_KEY: ${{ secrets.COSMOS_KEY }}
+      COSMOS_DATABASE: ${{ secrets.COSMOS_DATABASE }}
+      COSMOS_CONTAINER_PHRASES: ${{ secrets.COSMOS_CONTAINER_PHRASES }}
+      COSMOS_CONTAINER_USERS: ${{ secrets.COSMOS_CONTAINER_USERS }}
+      COSMOS_CONTAINER_CARDS: ${{ secrets.COSMOS_CONTAINER_CARDS }}
+      COSMOS_CONTAINER_PROGRESS: ${{ secrets.COSMOS_CONTAINER_PROGRESS }}
+      ADMIN_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_EMAIL_ALLOWLIST }}
     permissions:
       contents: read #This is required for actions/checkout
 
