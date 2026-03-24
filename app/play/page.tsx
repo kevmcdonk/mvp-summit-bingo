@@ -16,6 +16,7 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   const [houseBannerDismissed, setHouseBannerDismissed] = useState(false);
+  const [leaderboardPosition, setLeaderboardPosition] = useState<{ rank: number; total: number } | null>(null);
 
   const applyProgressFromMarks = useCallback((base: BingoProgress, markedIndexes: number[]): BingoProgress => {
     const linesCompleted = detectLines(markedIndexes).length;
@@ -37,11 +38,14 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      fetch('/api/card')
-        .then((res) => res.json())
-        .then((data) => {
+      Promise.all([
+        fetch('/api/card').then((res) => res.json()),
+        fetch('/api/leaderboard/position').then((res) => res.json()),
+      ])
+        .then(([data, pos]) => {
           setCardData(data);
           setProgress(data.progress);
+          setLeaderboardPosition(pos);
           setLoading(false);
         })
         .catch(() => {
@@ -159,6 +163,11 @@ export default function PlayPage() {
           <span><span aria-hidden="true">🏆</span> {progress.linesCompleted} line{progress.linesCompleted !== 1 ? 's' : ''}</span>
           {progress.hasHouse && <span className="text-blue-600 font-bold" aria-label="House achieved"><span aria-hidden="true">🏠</span> HOUSE!</span>}
           {progress.hasBingo && <span className="text-purple-600 font-bold" aria-label="Bingo achieved"><span aria-hidden="true">🎉</span> BINGO!</span>}
+          {leaderboardPosition && (
+            <span aria-label={`Leaderboard position ${leaderboardPosition.rank} of ${leaderboardPosition.total}`}>
+              <span aria-hidden="true">🏅</span> #{leaderboardPosition.rank} of {leaderboardPosition.total}
+            </span>
+          )}
         </div>
       </div>
 
