@@ -17,7 +17,7 @@ export default function WinBanner({ type, visible, onClose }: WinBannerProps) {
         aria-atomic="true"
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       >
-        <div className="relative animate-bounce text-center px-8 py-10 rounded-3xl bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 shadow-2xl">
+        <div className="relative animate-bounce-5 text-center px-8 py-10 rounded-3xl bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 shadow-2xl">
           {onClose && (
             <button
               type="button"
