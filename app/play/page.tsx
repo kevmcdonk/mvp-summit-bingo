@@ -16,6 +16,7 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   const [houseBannerDismissed, setHouseBannerDismissed] = useState(false);
+  const [bingoBannerDismissed, setBingoBannerDismissed] = useState(false);
   const [leaderboardPosition, setLeaderboardPosition] = useState<{ rank: number; total: number } | null>(null);
 
   const applyProgressFromMarks = useCallback((base: BingoProgress, markedIndexes: number[]): BingoProgress => {
@@ -54,6 +55,12 @@ export default function PlayPage() {
         });
     }
   }, [status]);
+
+  useEffect(() => {
+    if (!progress?.hasBingo) {
+      setBingoBannerDismissed(false);
+    }
+  }, [progress?.hasBingo]);
 
   useEffect(() => {
     if (!progress?.hasHouse) {
@@ -128,7 +135,7 @@ export default function PlayPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Banners */}
-      <WinBanner type="bingo" visible={progress.hasBingo} />
+      <WinBanner type="bingo" visible={progress.hasBingo && !bingoBannerDismissed} onClose={() => setBingoBannerDismissed(true)} />
       {!progress.hasBingo && (
         <WinBanner
           type="house"
