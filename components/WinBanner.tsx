@@ -24,6 +24,18 @@ export default function WinBanner({ type, visible, onClose }: WinBannerProps) {
           <div className="mt-4 text-2xl sm:text-3xl font-bold text-white/90">
             <span aria-hidden="true">🎉</span> Full Card Complete! <span aria-hidden="true">🎉</span>
           </div>
+          <div className="mt-6">
+            <video
+              src="/Kevin-Golf.mp4"
+              autoPlay
+              muted
+              controls
+              playsInline
+              loop
+              className="mx-auto rounded-2xl shadow-xl max-w-xs sm:max-w-sm w-full"
+              aria-label="Kevin Golf celebration video"
+            />
+          </div>
         </div>
       </div>
     );
