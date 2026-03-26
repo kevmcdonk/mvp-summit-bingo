@@ -17,6 +17,7 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const [users, setUsers] = useState<UserStatusSummary[]>([]);
   const [phrases, setPhrases] = useState<Phrase[]>([]);
+  const [phraseCounts, setPhraseCounts] = useState<Record<string, number>>({});
   const [newPhraseText, setNewPhraseText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>('markedCount');
@@ -67,9 +68,11 @@ export default function AdminPage() {
       Promise.all([
         fetch('/api/admin/status').then((r) => r.json()),
         fetch('/api/admin/phrases').then((r) => r.json()),
-      ]).then(([statusData, phraseData]) => {
+        fetch('/api/admin/phrase-counts').then((r) => r.json()),
+      ]).then(([statusData, phraseData, countsData]) => {
         setUsers(statusData.users ?? []);
         setPhrases(phraseData.phrases ?? []);
+        setPhraseCounts(countsData.phraseCounts ?? {});
         setLoading(false);
       });
     }
@@ -213,6 +216,7 @@ export default function AdminPage() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Phrase</th>
                   <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold">Ticks</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -225,6 +229,7 @@ export default function AdminPage() {
                         {phrase.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center font-medium">{phraseCounts[phrase.id] ?? 0}</td>
                     <td className="px-4 py-3 text-right flex gap-2 justify-end">
                       <button
                         onClick={() => handleTogglePhrase(phrase)}
@@ -242,7 +247,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {phrases.length === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
                 )}
               </tbody>
             </table>

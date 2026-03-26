@@ -15,16 +15,19 @@ export async function POST(request: NextRequest) {
   const user = session.user as { id: string };
   const userId = user.id;
 
-  let body: { index: number; marked: boolean };
+  let body: { index: number; phraseId: string; marked: boolean };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { index, marked } = body;
+  const { index, phraseId, marked } = body;
   if (typeof index !== 'number' || index < 0 || index > 24) {
     return NextResponse.json({ error: 'Invalid index: must be 0-24' }, { status: 400 });
+  }
+  if (typeof phraseId !== 'string' || !phraseId) {
+    return NextResponse.json({ error: 'Invalid phraseId' }, { status: 400 });
   }
 
   const card = await getCard(userId);
@@ -48,10 +51,15 @@ export async function POST(request: NextRequest) {
   }
 
   let markedIndexes = [...progress.markedIndexes];
-  if (marked && !markedIndexes.includes(index)) {
-    markedIndexes.push(index);
-  } else if (!marked) {
+  const phraseCounts: Record<string, number> = { ...(progress.phraseCounts ?? {}) };
+  if (marked) {
+    if (!markedIndexes.includes(index)) {
+      markedIndexes.push(index);
+    }
+    phraseCounts[phraseId] = (phraseCounts[phraseId] ?? 0) + 1;
+  } else {
     markedIndexes = markedIndexes.filter((i) => i !== index);
+    delete phraseCounts[phraseId];
   }
 
   const lines = detectLines(markedIndexes);
@@ -61,6 +69,7 @@ export async function POST(request: NextRequest) {
   const updated: BingoProgress = {
     ...progress,
     markedIndexes,
+    phraseCounts,
     linesCompleted: lines.length,
     hasHouse,
     hasBingo,

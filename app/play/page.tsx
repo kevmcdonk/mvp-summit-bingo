@@ -68,24 +68,33 @@ export default function PlayPage() {
     }
   }, [progress?.hasHouse]);
 
-  const handleToggle = useCallback(async (index: number, marked: boolean) => {
+  const handleToggle = useCallback(async (index: number, phraseId: string, marked: boolean) => {
     if (toggling) return;
     setToggling(true);
 
     // Optimistic update
     setProgress((prev) => {
       if (!prev) return prev;
-      const markedIndexes = marked
-        ? [...prev.markedIndexes, index]
-        : prev.markedIndexes.filter((i) => i !== index);
-      return applyProgressFromMarks(prev, markedIndexes);
+      let markedIndexes: number[];
+      if (marked) {
+        markedIndexes = prev.markedIndexes.includes(index) ? prev.markedIndexes : [...prev.markedIndexes, index];
+      } else {
+        markedIndexes = prev.markedIndexes.filter((i) => i !== index);
+      }
+      const phraseCounts = { ...(prev.phraseCounts ?? {}) };
+      if (marked) {
+        phraseCounts[phraseId] = (phraseCounts[phraseId] ?? 0) + 1;
+      } else {
+        delete phraseCounts[phraseId];
+      }
+      return { ...applyProgressFromMarks(prev, markedIndexes), phraseCounts };
     });
 
     try {
       const res = await fetch('/api/card/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ index, marked }),
+        body: JSON.stringify({ index, phraseId, marked }),
       });
       if (!res.ok) throw new Error('Toggle failed');
       const updated: BingoProgress = await res.json();
@@ -97,7 +106,18 @@ export default function PlayPage() {
         const markedIndexes = marked
           ? prev.markedIndexes.filter((i) => i !== index)
           : [...prev.markedIndexes, index];
-        return applyProgressFromMarks(prev, markedIndexes);
+        const phraseCounts = { ...(prev.phraseCounts ?? {}) };
+        if (marked) {
+          const current = phraseCounts[phraseId] ?? 0;
+          if (current > 1) {
+            phraseCounts[phraseId] = current - 1;
+          } else {
+            delete phraseCounts[phraseId];
+          }
+        } else {
+          phraseCounts[phraseId] = 1;
+        }
+        return { ...applyProgressFromMarks(prev, markedIndexes), phraseCounts };
       });
     } finally {
       setToggling(false);

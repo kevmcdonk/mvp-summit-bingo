@@ -26,6 +26,7 @@ export interface BingoProgress {
   userId: string;
   cardId: string;
   markedIndexes: number[]; // 0-24
+  phraseCounts?: Record<string, number>; // phraseId → number of times clicked
   linesCompleted: number;
   hasHouse: boolean;
   hasBingo: boolean;
