@@ -3,6 +3,7 @@ export interface Phrase {
   text: string;
   isActive: boolean;
   category: string | null;
+  inPersonOnly?: boolean;
 }
 
 export interface UserProfile {
@@ -10,6 +11,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   roles: string[];
+  isInPerson?: boolean;
   createdAt: string;
   updatedAt: string;
 }

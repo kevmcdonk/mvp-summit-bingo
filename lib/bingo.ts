@@ -32,8 +32,8 @@ export function checkBingo(markedIndexes: number[]): boolean {
   return markedIndexes.length === 25;
 }
 
-export function generateCard(phrases: Phrase[]): string[] {
-  const active = phrases.filter((p) => p.isActive);
+export function generateCard(phrases: Phrase[], isInPerson?: boolean): string[] {
+  const active = phrases.filter((p) => p.isActive && (!p.inPersonOnly || isInPerson === true));
   if (active.length < 25) {
     const error = new Error(
       `Not enough active phrases to generate a card. Need 25, got ${active.length}.`

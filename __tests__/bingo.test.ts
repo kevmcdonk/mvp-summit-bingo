@@ -1,8 +1,8 @@
 import { detectLines, checkHouse, checkBingo, generateCard, getLeaderboardRank, WINNING_LINES } from '../lib/bingo';
 import { Phrase, BingoProgress } from '../lib/types';
 
-function makePhrase(id: string, text: string, isActive = true): Phrase {
-  return { id, text, isActive, category: null };
+function makePhrase(id: string, text: string, isActive = true, inPersonOnly?: boolean): Phrase {
+  return { id, text, isActive, category: null, inPersonOnly };
 }
 
 describe('WINNING_LINES', () => {
@@ -135,6 +135,38 @@ describe('generateCard', () => {
   it('throws when all phrases inactive', () => {
     const phrases = Array.from({ length: 30 }, (_, i) => makePhrase(`id-${i}`, `Phrase ${i}`, false));
     expect(() => generateCard(phrases)).toThrow();
+  });
+
+  it('includes in-person-only phrases for in-person users', () => {
+    const regular = Array.from({ length: 20 }, (_, i) => makePhrase(`regular-${i}`, `Regular ${i}`, true, false));
+    const inPersonOnly = Array.from({ length: 10 }, (_, i) => makePhrase(`inperson-${i}`, `InPerson ${i}`, true, true));
+    const card = generateCard([...regular, ...inPersonOnly], true);
+    expect(card).toHaveLength(25);
+    // All 30 phrases are eligible so the card can include in-person ones
+    const inPersonIds = new Set(inPersonOnly.map((p) => p.id));
+    expect(card.some((id) => inPersonIds.has(id))).toBe(true);
+  });
+
+  it('excludes in-person-only phrases for remote users', () => {
+    const regular = Array.from({ length: 25 }, (_, i) => makePhrase(`regular-${i}`, `Regular ${i}`, true, false));
+    const inPersonOnly = Array.from({ length: 5 }, (_, i) => makePhrase(`inperson-${i}`, `InPerson ${i}`, true, true));
+    const card = generateCard([...regular, ...inPersonOnly], false);
+    const inPersonIds = new Set(inPersonOnly.map((p) => p.id));
+    expect(card.some((id) => inPersonIds.has(id))).toBe(false);
+  });
+
+  it('excludes in-person-only phrases when isInPerson is undefined', () => {
+    const regular = Array.from({ length: 25 }, (_, i) => makePhrase(`regular-${i}`, `Regular ${i}`, true, false));
+    const inPersonOnly = Array.from({ length: 5 }, (_, i) => makePhrase(`inperson-${i}`, `InPerson ${i}`, true, true));
+    const card = generateCard([...regular, ...inPersonOnly]);
+    const inPersonIds = new Set(inPersonOnly.map((p) => p.id));
+    expect(card.some((id) => inPersonIds.has(id))).toBe(false);
+  });
+
+  it('throws when fewer than 25 active phrases remain after in-person filter for remote user', () => {
+    const regular = Array.from({ length: 10 }, (_, i) => makePhrase(`regular-${i}`, `Regular ${i}`, true, false));
+    const inPersonOnly = Array.from({ length: 20 }, (_, i) => makePhrase(`inperson-${i}`, `InPerson ${i}`, true, true));
+    expect(() => generateCard([...regular, ...inPersonOnly], false)).toThrow();
   });
 });
 

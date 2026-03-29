@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [phraseCounts, setPhraseCounts] = useState<Record<string, number>>({});
   const [newPhraseText, setNewPhraseText] = useState('');
+  const [newPhraseInPersonOnly, setNewPhraseInPersonOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>('markedCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -115,11 +116,12 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/phrases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newPhraseText.trim(), isActive: true, category: null }),
+      body: JSON.stringify({ text: newPhraseText.trim(), isActive: true, category: null, inPersonOnly: newPhraseInPersonOnly }),
     });
     const phrase = await res.json();
     setPhrases((prev) => [...prev, phrase]);
     setNewPhraseText('');
+    setNewPhraseInPersonOnly(false);
   };
 
   const handleTogglePhrase = async (phrase: Phrase) => {
@@ -127,6 +129,16 @@ export default function AdminPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...phrase, isActive: !phrase.isActive }),
+    });
+    const updated = await res.json();
+    setPhrases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleToggleInPersonOnly = async (phrase: Phrase) => {
+    const res = await fetch('/api/admin/phrases', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...phrase, inPersonOnly: !phrase.inPersonOnly }),
     });
     const updated = await res.json();
     setPhrases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -234,6 +246,14 @@ export default function AdminPage() {
               className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="New phrase text"
             />
+            <label className="flex items-center gap-1 text-sm text-gray-700 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={newPhraseInPersonOnly}
+                onChange={(e) => setNewPhraseInPersonOnly(e.target.checked)}
+              />
+              In-person only
+            </label>
             <button
               onClick={handleAddPhrase}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -280,6 +300,12 @@ export default function AdminPage() {
                         className="px-3 py-1 text-xs border rounded hover:bg-gray-50"
                       >
                         {phrase.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => handleToggleInPersonOnly(phrase)}
+                        className="px-3 py-1 text-xs border rounded hover:bg-gray-50"
+                      >
+                        {phrase.inPersonOnly ? 'Make All' : 'In-Person Only'}
                       </button>
                       <button
                         onClick={() => handleDeletePhrase(phrase.id)}

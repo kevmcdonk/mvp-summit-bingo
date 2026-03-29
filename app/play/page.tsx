@@ -8,6 +8,8 @@ import WinBanner from '@/components/WinBanner';
 import { CardWithProgress, BingoProgress } from '@/lib/types';
 import { detectLines, checkHouse, checkBingo } from '@/lib/bingo';
 
+type CardResponse = (CardWithProgress & { needsPreference?: false }) | { needsPreference: true };
+
 export default function PlayPage() {
   const { data: session, status } = useSession();
   const [cardData, setCardData] = useState<CardWithProgress | null>(null);
@@ -18,6 +20,8 @@ export default function PlayPage() {
   const [houseBannerDismissed, setHouseBannerDismissed] = useState(false);
   const [bingoBannerDismissed, setBingoBannerDismissed] = useState(false);
   const [leaderboardPosition, setLeaderboardPosition] = useState<{ rank: number; total: number } | null>(null);
+  const [needsPreference, setNeedsPreference] = useState(false);
+  const [settingPreference, setSettingPreference] = useState(false);
 
   const applyProgressFromMarks = useCallback((base: BingoProgress, markedIndexes: number[]): BingoProgress => {
     const linesCompleted = detectLines(markedIndexes).length;
@@ -31,6 +35,24 @@ export default function PlayPage() {
     };
   }, []);
 
+  const loadCard = useCallback(() => {
+    return Promise.all([
+      fetch('/api/card').then((res) => res.json() as Promise<CardResponse>),
+      fetch('/api/leaderboard/position').then((res) => res.json()),
+    ]).then(([data, pos]) => {
+      if ('needsPreference' in data && data.needsPreference) {
+        setNeedsPreference(true);
+      } else {
+        const cardResponse = data as CardWithProgress;
+        setCardData(cardResponse);
+        setProgress(cardResponse.progress);
+        setNeedsPreference(false);
+      }
+      setLeaderboardPosition(pos);
+      setLoading(false);
+    });
+  }, []);
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       redirect('/');
@@ -39,22 +61,12 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      Promise.all([
-        fetch('/api/card').then((res) => res.json()),
-        fetch('/api/leaderboard/position').then((res) => res.json()),
-      ])
-        .then(([data, pos]) => {
-          setCardData(data);
-          setProgress(data.progress);
-          setLeaderboardPosition(pos);
-          setLoading(false);
-        })
-        .catch(() => {
-          setError('Failed to load card. Please try again.');
-          setLoading(false);
-        });
+      loadCard().catch(() => {
+        setError('Failed to load card. Please try again.');
+        setLoading(false);
+      });
     }
-  }, [status]);
+  }, [status, loadCard]);
 
   useEffect(() => {
     if (!progress?.hasBingo) {
@@ -67,6 +79,24 @@ export default function PlayPage() {
       setHouseBannerDismissed(false);
     }
   }, [progress?.hasHouse]);
+
+  const handleSelectAttendance = useCallback(async (isInPerson: boolean) => {
+    setSettingPreference(true);
+    try {
+      const res = await fetch('/api/user/preference', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isInPerson }),
+      });
+      if (!res.ok) throw new Error('Failed to set preference');
+      // Reload card now that preference is set
+      await loadCard();
+    } catch {
+      setError('Failed to set attendance preference. Please try again.');
+    } finally {
+      setSettingPreference(false);
+    }
+  }, [loadCard]);
 
   const handleToggle = useCallback(async (index: number, phraseId: string, marked: boolean) => {
     if (toggling) return;
@@ -143,6 +173,36 @@ export default function PlayPage() {
           <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-500 text-white rounded-lg">
             Retry
           </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (needsPreference) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+          <h1 className="text-2xl font-black text-gray-900 mb-2">🎯 MVP Summit Bingo</h1>
+          <p className="text-gray-600 mb-6">How are you attending the summit?</p>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => handleSelectAttendance(true)}
+              disabled={settingPreference}
+              className="px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-lg disabled:opacity-50"
+            >
+              <span aria-hidden="true">🏢</span> In-Person
+            </button>
+            <button
+              onClick={() => handleSelectAttendance(false)}
+              disabled={settingPreference}
+              className="px-6 py-4 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 font-semibold text-lg disabled:opacity-50"
+            >
+              <span aria-hidden="true">💻</span> Remote
+            </button>
+          </div>
+          {settingPreference && (
+            <p className="mt-4 text-sm text-gray-500">Setting up your card...</p>
+          )}
         </div>
       </main>
     );
