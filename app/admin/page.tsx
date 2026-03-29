@@ -6,9 +6,10 @@ import { redirect } from 'next/navigation';
 import { UserStatusSummary, Phrase } from '@/lib/types';
 
 type SortField = 'displayName' | 'markedCount' | 'linesCompleted' | 'hasHouse' | 'hasBingo' | 'lastActivity';
+type PhraseSortField = 'text' | 'isActive' | 'ticks';
 type SortDirection = 'asc' | 'desc';
 
-function SortIndicator({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) {
+function SortIndicator<T extends string>({ field, sortField, sortDirection }: { field: T; sortField: T; sortDirection: SortDirection }) {
   if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>;
   return <span className="ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
 }
@@ -23,6 +24,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>('markedCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [phraseSortField, setPhraseSortField] = useState<PhraseSortField>('text');
+  const [phraseSortDirection, setPhraseSortDirection] = useState<SortDirection>('asc');
 
   const user = session?.user as { roles?: string[] } | undefined;
   const isAdmin = user?.roles?.includes('admin');
@@ -52,6 +55,35 @@ export default function AdminPage() {
     } else {
       setSortField(field);
       setSortDirection('desc');
+    }
+  };
+
+  const sortedPhrases = useMemo(() => {
+    return [...phrases].sort((a, b) => {
+      let aVal: string | number | boolean;
+      let bVal: string | number | boolean;
+      if (phraseSortField === 'ticks') {
+        aVal = phraseCounts[a.id] ?? 0;
+        bVal = phraseCounts[b.id] ?? 0;
+      } else if (phraseSortField === 'isActive') {
+        aVal = a.isActive ? 1 : 0;
+        bVal = b.isActive ? 1 : 0;
+      } else {
+        aVal = a.text.toLowerCase();
+        bVal = b.text.toLowerCase();
+      }
+      if (aVal < bVal) return phraseSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return phraseSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [phrases, phraseCounts, phraseSortField, phraseSortDirection]);
+
+  const handlePhraseSort = (field: PhraseSortField) => {
+    if (phraseSortField === field) {
+      setPhraseSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setPhraseSortField(field);
+      setPhraseSortDirection('asc');
     }
   };
 
@@ -234,28 +266,32 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Phrase</th>
-                  <th className="px-4 py-3 text-center font-semibold">Status</th>
-                  <th className="px-4 py-3 text-center font-semibold">In-Person Only</th>
-                  <th className="px-4 py-3 text-center font-semibold">Ticks</th>
+                  <th className="px-4 py-3 text-left font-semibold">
+                    <button onClick={() => handlePhraseSort('text')} aria-label={`Sort by phrase${phraseSortField === 'text' ? `, currently sorted ${phraseSortDirection}ending` : ''}`} className="flex items-center hover:text-blue-600">
+                      Phrase<SortIndicator field="text" sortField={phraseSortField} sortDirection={phraseSortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handlePhraseSort('isActive')} aria-label={`Sort by status${phraseSortField === 'isActive' ? `, currently sorted ${phraseSortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      Status<SortIndicator field="isActive" sortField={phraseSortField} sortDirection={phraseSortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handlePhraseSort('ticks')} aria-label={`Sort by ticks${phraseSortField === 'ticks' ? `, currently sorted ${phraseSortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      Ticks<SortIndicator field="ticks" sortField={phraseSortField} sortDirection={phraseSortDirection} />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {phrases.map((phrase) => (
+                {sortedPhrases.map((phrase) => (
                   <tr key={phrase.id} className="border-b hover:bg-gray-50">
                     <td className="px-4 py-3">{phrase.text}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${phrase.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
                         {phrase.isActive ? 'Active' : 'Inactive'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {phrase.inPersonOnly ? (
-                        <span aria-label="In-person only" className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">🏢 In-Person</span>
-                      ) : (
-                        <span aria-label="Available to all attendees" className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600">🌐 All</span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center font-medium">{phraseCounts[phrase.id] ?? 0}</td>
                     <td className="px-4 py-3 text-right flex gap-2 justify-end">
@@ -281,7 +317,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {phrases.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
                 )}
               </tbody>
             </table>
