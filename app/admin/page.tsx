@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [phraseCounts, setPhraseCounts] = useState<Record<string, number>>({});
   const [newPhraseText, setNewPhraseText] = useState('');
+  const [newPhraseInPersonOnly, setNewPhraseInPersonOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>('markedCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -83,11 +84,12 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/phrases', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newPhraseText.trim(), isActive: true, category: null }),
+      body: JSON.stringify({ text: newPhraseText.trim(), isActive: true, category: null, inPersonOnly: newPhraseInPersonOnly }),
     });
     const phrase = await res.json();
     setPhrases((prev) => [...prev, phrase]);
     setNewPhraseText('');
+    setNewPhraseInPersonOnly(false);
   };
 
   const handleTogglePhrase = async (phrase: Phrase) => {
@@ -95,6 +97,16 @@ export default function AdminPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...phrase, isActive: !phrase.isActive }),
+    });
+    const updated = await res.json();
+    setPhrases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleToggleInPersonOnly = async (phrase: Phrase) => {
+    const res = await fetch('/api/admin/phrases', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...phrase, inPersonOnly: !phrase.inPersonOnly }),
     });
     const updated = await res.json();
     setPhrases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -202,6 +214,14 @@ export default function AdminPage() {
               className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="New phrase text"
             />
+            <label className="flex items-center gap-1 text-sm text-gray-700 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={newPhraseInPersonOnly}
+                onChange={(e) => setNewPhraseInPersonOnly(e.target.checked)}
+              />
+              In-person only
+            </label>
             <button
               onClick={handleAddPhrase}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -216,6 +236,7 @@ export default function AdminPage() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Phrase</th>
                   <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold">In-Person Only</th>
                   <th className="px-4 py-3 text-center font-semibold">Ticks</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
@@ -229,6 +250,13 @@ export default function AdminPage() {
                         {phrase.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {phrase.inPersonOnly ? (
+                        <span aria-label="In-person only" className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">🏢 In-Person</span>
+                      ) : (
+                        <span aria-label="Available to all attendees" className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600">🌐 All</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center font-medium">{phraseCounts[phrase.id] ?? 0}</td>
                     <td className="px-4 py-3 text-right flex gap-2 justify-end">
                       <button
@@ -236,6 +264,12 @@ export default function AdminPage() {
                         className="px-3 py-1 text-xs border rounded hover:bg-gray-50"
                       >
                         {phrase.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => handleToggleInPersonOnly(phrase)}
+                        className="px-3 py-1 text-xs border rounded hover:bg-gray-50"
+                      >
+                        {phrase.inPersonOnly ? 'Make All' : 'In-Person Only'}
                       </button>
                       <button
                         onClick={() => handleDeletePhrase(phrase.id)}
@@ -247,7 +281,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {phrases.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
                 )}
               </tbody>
             </table>

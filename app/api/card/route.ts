@@ -33,8 +33,13 @@ export async function GET() {
   // Get or create card
   let card = await getCard(userId);
   if (!card) {
+    // New user: require them to choose in-person vs remote before card generation
+    if (profile.isInPerson === undefined) {
+      return NextResponse.json({ needsPreference: true });
+    }
+
     const phrases = await getPhrases();
-    const phraseIds = generateCard(phrases);
+    const phraseIds = generateCard(phrases, profile.isInPerson);
     const newCard: BingoCard = {
       id: uuidv4(),
       userId,
