@@ -8,7 +8,7 @@ interface BingoCardProps {
   phrases: Phrase[];
   cardPhraseIds: string[];
   progress: BingoProgress;
-  onToggle: (index: number, marked: boolean) => void;
+  onToggle: (index: number, phraseId: string, marked: boolean) => void;
 }
 
 export default function BingoCard({ phrases, cardPhraseIds, progress, onToggle }: BingoCardProps) {
@@ -16,6 +16,7 @@ export default function BingoCard({ phrases, cardPhraseIds, progress, onToggle }
   const markedSet = new Set(progress.markedIndexes);
   const completedLines = detectLines(progress.markedIndexes);
   const winningCells = new Set(completedLines.flat());
+  const phraseCounts = progress.phraseCounts ?? {};
 
   return (
     <div
@@ -32,8 +33,10 @@ export default function BingoCard({ phrases, cardPhraseIds, progress, onToggle }
               phrase={phrase}
               index={index}
               marked={markedSet.has(index)}
+              count={phraseCounts[phraseId] ?? 0}
               isWinningCell={winningCells.has(index)}
-              onToggle={onToggle}
+              onMark={(i) => onToggle(i, cardPhraseIds[i], true)}
+              onUnmark={(i) => onToggle(i, cardPhraseIds[i], false)}
             />
           </div>
         );

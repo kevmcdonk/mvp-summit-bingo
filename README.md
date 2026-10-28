@@ -137,6 +137,10 @@ npm test
 | `npm run lint` | Run ESLint |
 | `npm test` | Run Jest tests |
 
+
+## Process
+For any chances, run them through the dev branch first
+
 ## Deploying to Azure Web App
 
 ### Option A: Deploy via Azure CLI

@@ -1,17 +1,28 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { redirect } from 'next/navigation';
 import { UserStatusSummary, Phrase, GuessSettings } from '@/lib/types';
+
+type SortField = 'displayName' | 'markedCount' | 'linesCompleted' | 'hasHouse' | 'hasBingo' | 'lastActivity';
+type SortDirection = 'asc' | 'desc';
+
+function SortIndicator({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) {
+  if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>;
+  return <span className="ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
+}
 import { buildGuessInstant, toDateKey } from '@/lib/guess';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const [users, setUsers] = useState<UserStatusSummary[]>([]);
   const [phrases, setPhrases] = useState<Phrase[]>([]);
+  const [phraseCounts, setPhraseCounts] = useState<Record<string, number>>({});
   const [newPhraseText, setNewPhraseText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sortField, setSortField] = useState<SortField>('markedCount');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [guessSettings, setGuessSettings] = useState<GuessSettings | null>(null);
   const [correctDate, setCorrectDate] = useState('');
   const [correctHour, setCorrectHour] = useState(0);
@@ -20,6 +31,34 @@ export default function AdminPage() {
 
   const user = session?.user as { roles?: string[] } | undefined;
   const isAdmin = user?.roles?.includes('admin');
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      let aVal: string | number | boolean = a[sortField];
+      let bVal: string | number | boolean = b[sortField];
+
+      if (typeof aVal === 'boolean') {
+        aVal = aVal ? 1 : 0;
+        bVal = (bVal as boolean) ? 1 : 0;
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal as string).toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [users, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
   const applyGuessSettings = useCallback((settings: GuessSettings) => {
     setGuessSettings(settings);
@@ -48,10 +87,12 @@ export default function AdminPage() {
       Promise.all([
         fetch('/api/admin/status').then((r) => r.json()),
         fetch('/api/admin/phrases').then((r) => r.json()),
+        fetch('/api/admin/phrase-counts').then((r) => r.json()),
         fetch('/api/admin/guess-settings').then((r) => r.json()),
-      ]).then(([statusData, phraseData, settings]) => {
+      ]).then(([statusData, phraseData, countsData, settings]) => {
         setUsers(statusData.users ?? []);
         setPhrases(phraseData.phrases ?? []);
+        setPhraseCounts(countsData.phraseCounts ?? {});
         applyGuessSettings(settings);
         setLoading(false);
       });
@@ -132,16 +173,40 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">User</th>
-                  <th className="px-4 py-3 text-center font-semibold">Marked</th>
-                  <th className="px-4 py-3 text-center font-semibold">Lines</th>
-                  <th className="px-4 py-3 text-center font-semibold">House</th>
-                  <th className="px-4 py-3 text-center font-semibold">Bingo</th>
-                  <th className="px-4 py-3 text-left font-semibold">Last Activity</th>
+                  <th className="px-4 py-3 text-left font-semibold">
+                    <button onClick={() => handleSort('displayName')} aria-label={`Sort by user name${sortField === 'displayName' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center hover:text-blue-600">
+                      User<SortIndicator field="displayName" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handleSort('markedCount')} aria-label={`Sort by marked count${sortField === 'markedCount' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      Marked<SortIndicator field="markedCount" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handleSort('linesCompleted')} aria-label={`Sort by lines completed${sortField === 'linesCompleted' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      Lines<SortIndicator field="linesCompleted" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handleSort('hasHouse')} aria-label={`Sort by house${sortField === 'hasHouse' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      House<SortIndicator field="hasHouse" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-center font-semibold">
+                    <button onClick={() => handleSort('hasBingo')} aria-label={`Sort by bingo${sortField === 'hasBingo' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center justify-center w-full hover:text-blue-600">
+                      Bingo<SortIndicator field="hasBingo" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold">
+                    <button onClick={() => handleSort('lastActivity')} aria-label={`Sort by last activity${sortField === 'lastActivity' ? `, currently sorted ${sortDirection}ending` : ''}`} className="flex items-center hover:text-blue-600">
+                      Last Activity<SortIndicator field="lastActivity" sortField={sortField} sortDirection={sortDirection} />
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {sortedUsers.map((u) => (
                   <tr key={u.userId} className="border-b hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="font-medium">{u.displayName}</div>
@@ -265,6 +330,7 @@ export default function AdminPage() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Phrase</th>
                   <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold">Ticks</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -277,6 +343,7 @@ export default function AdminPage() {
                         {phrase.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center font-medium">{phraseCounts[phrase.id] ?? 0}</td>
                     <td className="px-4 py-3 text-right flex gap-2 justify-end">
                       <button
                         onClick={() => handleTogglePhrase(phrase)}
@@ -294,7 +361,7 @@ export default function AdminPage() {
                   </tr>
                 ))}
                 {phrases.length === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No phrases yet</td></tr>
                 )}
               </tbody>
             </table>

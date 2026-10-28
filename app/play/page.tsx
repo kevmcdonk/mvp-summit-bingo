@@ -16,6 +16,8 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   const [houseBannerDismissed, setHouseBannerDismissed] = useState(false);
+  const [bingoBannerDismissed, setBingoBannerDismissed] = useState(false);
+  const [leaderboardPosition, setLeaderboardPosition] = useState<{ rank: number; total: number } | null>(null);
 
   const applyProgressFromMarks = useCallback((base: BingoProgress, markedIndexes: number[]): BingoProgress => {
     const linesCompleted = detectLines(markedIndexes).length;
@@ -37,11 +39,14 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      fetch('/api/card')
-        .then((res) => res.json())
-        .then((data) => {
+      Promise.all([
+        fetch('/api/card').then((res) => res.json()),
+        fetch('/api/leaderboard/position').then((res) => res.json()),
+      ])
+        .then(([data, pos]) => {
           setCardData(data);
           setProgress(data.progress);
+          setLeaderboardPosition(pos);
           setLoading(false);
         })
         .catch(() => {
@@ -52,29 +57,44 @@ export default function PlayPage() {
   }, [status]);
 
   useEffect(() => {
+    if (!progress?.hasBingo) {
+      setBingoBannerDismissed(false);
+    }
+  }, [progress?.hasBingo]);
+
+  useEffect(() => {
     if (!progress?.hasHouse) {
       setHouseBannerDismissed(false);
     }
   }, [progress?.hasHouse]);
 
-  const handleToggle = useCallback(async (index: number, marked: boolean) => {
+  const handleToggle = useCallback(async (index: number, phraseId: string, marked: boolean) => {
     if (toggling) return;
     setToggling(true);
 
     // Optimistic update
     setProgress((prev) => {
       if (!prev) return prev;
-      const markedIndexes = marked
-        ? [...prev.markedIndexes, index]
-        : prev.markedIndexes.filter((i) => i !== index);
-      return applyProgressFromMarks(prev, markedIndexes);
+      let markedIndexes: number[];
+      if (marked) {
+        markedIndexes = prev.markedIndexes.includes(index) ? prev.markedIndexes : [...prev.markedIndexes, index];
+      } else {
+        markedIndexes = prev.markedIndexes.filter((i) => i !== index);
+      }
+      const phraseCounts = { ...(prev.phraseCounts ?? {}) };
+      if (marked) {
+        phraseCounts[phraseId] = (phraseCounts[phraseId] ?? 0) + 1;
+      } else {
+        delete phraseCounts[phraseId];
+      }
+      return { ...applyProgressFromMarks(prev, markedIndexes), phraseCounts };
     });
 
     try {
       const res = await fetch('/api/card/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ index, marked }),
+        body: JSON.stringify({ index, phraseId, marked }),
       });
       if (!res.ok) throw new Error('Toggle failed');
       const updated: BingoProgress = await res.json();
@@ -86,7 +106,18 @@ export default function PlayPage() {
         const markedIndexes = marked
           ? prev.markedIndexes.filter((i) => i !== index)
           : [...prev.markedIndexes, index];
-        return applyProgressFromMarks(prev, markedIndexes);
+        const phraseCounts = { ...(prev.phraseCounts ?? {}) };
+        if (marked) {
+          const current = phraseCounts[phraseId] ?? 0;
+          if (current > 1) {
+            phraseCounts[phraseId] = current - 1;
+          } else {
+            delete phraseCounts[phraseId];
+          }
+        } else {
+          phraseCounts[phraseId] = 1;
+        }
+        return { ...applyProgressFromMarks(prev, markedIndexes), phraseCounts };
       });
     } finally {
       setToggling(false);
@@ -124,7 +155,7 @@ export default function PlayPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Banners */}
-      <WinBanner type="bingo" visible={progress.hasBingo} />
+      <WinBanner type="bingo" visible={progress.hasBingo && !bingoBannerDismissed} onClose={() => setBingoBannerDismissed(true)} />
       {!progress.hasBingo && (
         <WinBanner
           type="house"
@@ -160,6 +191,11 @@ export default function PlayPage() {
           <span><span aria-hidden="true">🏆</span> {progress.linesCompleted} line{progress.linesCompleted !== 1 ? 's' : ''}</span>
           {progress.hasHouse && <span className="text-blue-600 font-bold" aria-label="House achieved"><span aria-hidden="true">🏠</span> HOUSE!</span>}
           {progress.hasBingo && <span className="text-purple-600 font-bold" aria-label="Bingo achieved"><span aria-hidden="true">🎉</span> BINGO!</span>}
+          {leaderboardPosition && (
+            <span aria-label={`Leaderboard position ${leaderboardPosition.rank} of ${leaderboardPosition.total}`}>
+              <span aria-hidden="true">🏅</span> #{leaderboardPosition.rank} of {leaderboardPosition.total}
+            </span>
+          )}
         </div>
       </div>
 
