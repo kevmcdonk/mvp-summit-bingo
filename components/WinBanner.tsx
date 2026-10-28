@@ -26,7 +26,7 @@ export default function WinBanner({ type, visible, onClose }: WinBannerProps) {
           </div>
           <div className="mt-6">
             <video
-              src="/Kevin-Golf.mp4"
+              src="/SaraCheer.mp4"
               autoPlay
               muted
               controls

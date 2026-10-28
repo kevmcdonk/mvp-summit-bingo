@@ -10,6 +10,24 @@
   --color-foreground: var(--foreground);
 }
 
+/* ESPC brand palette (from espc.tech). Contrast notes are against white:
+   navy 14.6:1, slate 6.2:1, teal 4.6:1, green-dark 5.4:1, red-dark 6.4:1; navy on yellow 9:1.
+   cyan/blue/green/yellow are < 3:1 on white — use only as fills behind navy text or as decoration. */
+@theme {
+  --color-espc-navy: #002b49;
+  --color-espc-slate: #48647d;
+  --color-espc-cyan: #06c9f7;
+  --color-espc-blue: #00b8e7;
+  --color-espc-teal: #007f9f;
+  --color-espc-green: #00c700;
+  --color-espc-green-dark: #007864;
+  --color-espc-yellow: #ffc300;
+  --color-espc-yellow-light: #fff3cc;
+  --color-espc-red-dark: #b42a05;
+  --color-espc-light: #f2f4f6;
+  --color-espc-border: #dde2e5;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

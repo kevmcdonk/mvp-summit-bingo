@@ -211,6 +211,7 @@ export default function AdminPage() {
             <a href="/phrases" className="text-sm text-blue-600 hover:underline">Phrases</a>
             <a href="/guess" className="text-sm text-blue-600 hover:underline">Guess</a>
             <a href="/play" className="text-sm text-blue-600 hover:underline">Play</a>
+            <a href="/about" className="text-sm text-blue-600 hover:underline">About</a>
             <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-gray-600">Sign Out</button>
           </div>
         </div>

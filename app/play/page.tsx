@@ -171,6 +171,7 @@ export default function PlayPage() {
           <div className="flex items-center gap-3">
             <a href="/phrases" className="text-sm text-blue-600 hover:underline font-medium">Phrases</a>
             <a href="/guess" className="text-sm text-blue-600 hover:underline font-medium">Guess</a>
+            <a href="/about" className="text-sm text-blue-600 hover:underline font-medium">About</a>
             {user?.roles?.includes('admin') && (
               <a href="/admin" className="text-sm text-blue-600 hover:underline font-medium">Admin</a>
             )}

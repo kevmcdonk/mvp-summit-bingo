@@ -14,11 +14,13 @@ export default async function HomePage() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
       <div className="text-center px-6 py-12 rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl max-w-md w-full mx-4">
         <div className="text-6xl mb-4">🎯</div>
-        <h1 className="text-4xl font-black text-white mb-2 tracking-tight">MVP Summit Bingo</h1>
+        <h1 className="text-4xl font-black text-white mb-2 tracking-tight">ESPC Bingo</h1>
         <p className="text-blue-200 mb-8 text-lg">Sign in to play!</p>
         <SignInButton />
         <div className="mt-4">
-
+          <Link href="/about" className="text-sm text-blue-200 hover:text-white underline">
+            What is this?
+          </Link>
         </div>
       </div>
     </main>

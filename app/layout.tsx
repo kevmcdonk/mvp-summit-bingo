@@ -3,8 +3,8 @@ import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 
 export const metadata: Metadata = {
-  title: 'MVP Summit Bingo',
-  description: 'Bingo game for MVP Summit attendees',
+  title: 'ESPC Bingo',
+  description: 'Bingo game for ESPC attendees',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
