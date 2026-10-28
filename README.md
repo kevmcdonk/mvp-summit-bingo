@@ -48,8 +48,8 @@ cp .env.example .env.local
 | `COSMOS_CONTAINER_USERS` | Container for users (default: `users`) |
 | `COSMOS_CONTAINER_CARDS` | Container for bingo cards (default: `cards`) |
 | `COSMOS_CONTAINER_PROGRESS` | Container for game progress (default: `progress`) |
-| `COSMOS_CONTAINER_GUESSES` | Container for registration date guesses, one per user (default: `guesses`) |
-| `COSMOS_CONTAINER_SETTINGS` | Container for app settings such as the correct registration time (default: `settings`) |
+| `COSMOS_CONTAINER_CONFERENCE_GUESSES` | Container for ESPC location guesses, one per user with full edit history (default: `conference-guesses`) |
+| `COSMOS_CONTAINER_SETTINGS` | Container for app settings such as the correct ESPC location (default: `settings`) |
 | `ADMIN_EMAIL_ALLOWLIST` | Comma-separated list of admin email addresses |
 
 > **Note:** You only need to configure the providers you want to use. At least one provider must be configured. Any provider whose `*_CLIENT_ID` variable is not set will be skipped.
@@ -93,15 +93,16 @@ Create a Cosmos DB account (API: NoSQL) and a database named `bingo` with the fo
 - `users`
 - `cards`
 - `progress`
-- `guesses`
+- `conference-guesses`
 - `settings`
 
 The app also creates these containers automatically on first use if they don't exist.
 
-### Registration guess page
-
-`/guess` shows a two-week calendar (UTC) where each signed-in user can lock in a single guess (day + hour) for when MVP Summit registration opens. Admins can set the correct time — and change the calendar start date — from the **Registration Guess** section of `/admin`. Once the correct time is set, guessing closes and the correct day/hour and the closest guess(es) are highlighted.
 Copy the account URI and primary key from **Keys** in the Azure Portal into `.env.local`.
+
+### ESPC location guess page
+
+`/guess` lets each signed-in user submit a free-text guess for where the next ESPC conference will be held. Each user has a single guess which they can change until the answer is revealed; every submission is kept in a `history` array on the user's document so admins can audit changes. Admins see all guesses (with expandable history) and set the correct answer from the **ESPC Location Guesses** section of `/admin`. Setting the answer locks guessing and highlights matching guesses (case-, accent- and punctuation-insensitive).
 
 ### 4. Run the development server
 

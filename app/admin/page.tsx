@@ -1,9 +1,10 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { Fragment, useEffect, useState, useMemo } from 'react';
+import { MAX_GUESS_LENGTH } from '@/lib/conferenceGuess';
 import { redirect } from 'next/navigation';
-import { UserStatusSummary, Phrase, GuessSettings } from '@/lib/types';
+import { UserStatusSummary, Phrase, AdminConferenceGuess } from '@/lib/types';
 
 type SortField = 'displayName' | 'markedCount' | 'linesCompleted' | 'hasHouse' | 'hasBingo' | 'lastActivity';
 type SortDirection = 'asc' | 'desc';
@@ -12,7 +13,6 @@ function SortIndicator({ field, sortField, sortDirection }: { field: SortField; 
   if (sortField !== field) return <span className="ml-1 text-gray-300">↕</span>;
   return <span className="ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
 }
-import { buildGuessInstant, toDateKey } from '@/lib/guess';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -23,11 +23,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>('markedCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [guessSettings, setGuessSettings] = useState<GuessSettings | null>(null);
-  const [correctDate, setCorrectDate] = useState('');
-  const [correctHour, setCorrectHour] = useState(0);
-  const [windowStart, setWindowStart] = useState('');
+  const [conferenceGuesses, setConferenceGuesses] = useState<AdminConferenceGuess[]>([]);
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
+  const [answerInput, setAnswerInput] = useState('');
   const [guessMessage, setGuessMessage] = useState<string | null>(null);
+  const [expandedGuess, setExpandedGuess] = useState<string | null>(null);
 
   const user = session?.user as { roles?: string[] } | undefined;
   const isAdmin = user?.roles?.includes('admin');
@@ -60,19 +60,6 @@ export default function AdminPage() {
     }
   };
 
-  const applyGuessSettings = useCallback((settings: GuessSettings) => {
-    setGuessSettings(settings);
-    setWindowStart(settings.windowStart);
-    if (settings.correctAt) {
-      const d = new Date(settings.correctAt);
-      setCorrectDate(toDateKey(d));
-      setCorrectHour(d.getUTCHours());
-    } else {
-      setCorrectDate(settings.windowStart);
-      setCorrectHour(0);
-    }
-  }, []);
-
   useEffect(() => {
     if (status === 'unauthenticated') {
       redirect('/');
@@ -88,32 +75,38 @@ export default function AdminPage() {
         fetch('/api/admin/status').then((r) => r.json()),
         fetch('/api/admin/phrases').then((r) => r.json()),
         fetch('/api/admin/phrase-counts').then((r) => r.json()),
-        fetch('/api/admin/guess-settings').then((r) => r.json()),
-      ]).then(([statusData, phraseData, countsData, settings]) => {
+        fetch('/api/admin/conference-guesses').then((r) => r.json()),
+      ]).then(([statusData, phraseData, countsData, guessData]) => {
         setUsers(statusData.users ?? []);
         setPhrases(phraseData.phrases ?? []);
         setPhraseCounts(countsData.phraseCounts ?? {});
-        applyGuessSettings(settings);
+        setConferenceGuesses(guessData.guesses ?? []);
+        setCorrectAnswer(guessData.correctAnswer ?? null);
+        setAnswerInput(guessData.correctAnswer ?? '');
         setLoading(false);
       });
     }
-  }, [status, isAdmin, applyGuessSettings]);
+  }, [status, isAdmin]);
 
 
-  const saveGuessSettings = async (body: Record<string, unknown>, message: string) => {
+  const saveCorrectAnswer = async (answer: string | null) => {
     setGuessMessage(null);
-    const res = await fetch('/api/admin/guess-settings', {
+    const res = await fetch('/api/admin/conference-guesses', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ correctAnswer: answer }),
     });
     const json = await res.json();
     if (!res.ok) {
       setGuessMessage(json.error ?? 'Failed to save');
       return;
     }
-    applyGuessSettings(json);
-    setGuessMessage(message);
+    // Reload so isCorrect flags are recomputed server-side with the same matching rules.
+    const refreshed = await fetch('/api/admin/conference-guesses').then((r) => r.json());
+    setConferenceGuesses(refreshed.guesses ?? []);
+    setCorrectAnswer(refreshed.correctAnswer ?? null);
+    setAnswerInput(refreshed.correctAnswer ?? '');
+    setGuessMessage(answer ? 'Correct answer saved — guessing is now closed.' : 'Answer cleared — guessing reopened.');
   };
 
   const handleAddPhrase = async () => {
@@ -227,78 +220,107 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* Registration Guess */}
+        {/* ESPC Location Guesses */}
         <section>
-          <h2 className="text-xl font-bold mb-4">Registration Guess</h2>
-          <div className="bg-white rounded-xl shadow p-4 space-y-4">
+          <h2 className="text-xl font-bold mb-4">ESPC Location Guesses ({conferenceGuesses.length})</h2>
+          <div className="bg-white rounded-xl shadow p-4 space-y-3 mb-4">
             <p className="text-sm text-gray-600">
-              Current registration time:{' '}
-              <strong>
-                {guessSettings?.correctAt
-                  ? new Date(guessSettings.correctAt).toUTCString()
-                  : 'Not set (guessing open)'}
-              </strong>
+              Correct answer: <strong>{correctAnswer ?? 'Not set (guessing open)'}</strong>
             </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col text-sm">
-                <span className="font-medium mb-1">Date (UTC)</span>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => { e.preventDefault(); if (answerInput.trim()) saveCorrectAnswer(answerInput); }}
+            >
+              <label className="flex flex-col text-sm flex-1 min-w-48">
+                <span className="font-medium mb-1">Set correct location</span>
                 <input
-                  type="date"
-                  value={correctDate}
-                  onChange={(e) => setCorrectDate(e.target.value)}
-                  className="px-3 py-2 border rounded-lg"
+                  type="text"
+                  value={answerInput}
+                  onChange={(e) => setAnswerInput(e.target.value)}
+                  maxLength={MAX_GUESS_LENGTH}
+                  placeholder="e.g. Dublin"
+                  className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </label>
-              <label className="flex flex-col text-sm">
-                <span className="font-medium mb-1">Hour (UTC)</span>
-                <select
-                  value={correctHour}
-                  onChange={(e) => setCorrectHour(Number(e.target.value))}
-                  className="px-3 py-2 border rounded-lg"
-                >
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
-                  ))}
-                </select>
-              </label>
               <button
-                onClick={() => correctDate && saveGuessSettings(
-                  { correctAt: buildGuessInstant(correctDate, correctHour) },
-                  'Registration time saved — guessing is now closed.',
-                )}
-                disabled={!correctDate}
+                type="submit"
+                disabled={!answerInput.trim()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
               >
-                Set correct time
+                Set answer
               </button>
-              {guessSettings?.correctAt && (
+              {correctAnswer && (
                 <button
-                  onClick={() => saveGuessSettings({ correctAt: null }, 'Registration time cleared — guessing reopened.')}
+                  type="button"
+                  onClick={() => saveCorrectAnswer(null)}
                   className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100"
                 >
                   Clear
                 </button>
               )}
-            </div>
-            <div className="flex flex-wrap items-end gap-2 border-t pt-4">
-              <label className="flex flex-col text-sm">
-                <span className="font-medium mb-1">Calendar start (first of 14 days, UTC)</span>
-                <input
-                  type="date"
-                  value={windowStart}
-                  onChange={(e) => setWindowStart(e.target.value)}
-                  className="px-3 py-2 border rounded-lg"
-                />
-              </label>
-              <button
-                onClick={() => windowStart && saveGuessSettings({ windowStart }, 'Calendar start updated.')}
-                disabled={!windowStart}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
-              >
-                Update calendar
-              </button>
-            </div>
+            </form>
+            <p className="text-xs text-gray-500">Matching ignores case, accents and punctuation. Setting an answer locks all guesses.</p>
             {guessMessage && <p role="status" className="text-sm text-gray-700">{guessMessage}</p>}
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">User</th>
+                  <th className="px-4 py-3 text-left font-semibold">Current guess</th>
+                  <th className="px-4 py-3 text-center font-semibold">Submissions</th>
+                  <th className="px-4 py-3 text-left font-semibold">First / last submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conferenceGuesses.map((g) => {
+                  const changes = g.history.length;
+                  const expanded = expandedGuess === g.userId;
+                  return (
+                    <Fragment key={g.userId}>
+                      <tr className={`border-b ${g.isCorrect ? 'bg-yellow-100 font-semibold' : 'hover:bg-gray-50'}`}>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{g.isCorrect && '🏆 '}{g.displayName}</div>
+                          <div className="text-gray-500 text-xs">{g.email}</div>
+                        </td>
+                        <td className="px-4 py-3">{g.location}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedGuess(expanded ? null : g.userId)}
+                            aria-expanded={expanded}
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${changes > 1 ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600'}`}
+                          >
+                            {changes} {expanded ? '▲' : '▼'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500">
+                          {new Date(g.createdAt).toLocaleString()}<br />{new Date(g.updatedAt).toLocaleString()}
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="border-b bg-gray-50">
+                          <td colSpan={4} className="px-6 py-3">
+                            <ol className="space-y-1 text-xs">
+                              {g.history.map((h, i) => (
+                                <li key={i} className="flex gap-4">
+                                  <span className="text-gray-500 w-44 shrink-0">{new Date(h.submittedAt).toLocaleString()}</span>
+                                  <span>{h.location}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {conferenceGuesses.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No guesses yet</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 

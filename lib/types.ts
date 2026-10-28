@@ -41,25 +41,46 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
-export interface RegistrationGuess {
-  id: string; // user id — one guess per user
-  userId: string;
-  displayName: string;
-  guessAt: string; // ISO UTC instant
-  createdAt: string;
+export interface ConferenceGuessHistoryEntry {
+  location: string;
+  submittedAt: string; // ISO
 }
 
-export interface GuessSettings {
+/** One document per user (id = userId); history is admin-only. */
+export interface ConferenceGuess {
   id: string;
-  windowStart: string; // YYYY-MM-DD (UTC) — first day of the 14-day calendar
-  correctAt: string | null; // ISO UTC instant set by admin
+  userId: string;
+  displayName: string;
+  email: string;
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+  history: ConferenceGuessHistoryEntry[];
+}
+
+export interface ConferenceGuessSettings {
+  id: string;
+  correctAnswer: string | null;
   updatedAt: string;
 }
 
-export interface PublicGuess {
+export interface PublicConferenceGuess {
   displayName: string;
-  guessAt: string;
+  location: string;
+  updatedAt: string;
   isMine: boolean;
+  isCorrect: boolean;
+}
+
+export interface AdminConferenceGuess {
+  userId: string;
+  displayName: string;
+  email: string;
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+  history: ConferenceGuessHistoryEntry[];
+  isCorrect: boolean;
 }
 
 export interface CardWithProgress {

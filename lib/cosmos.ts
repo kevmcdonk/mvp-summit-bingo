@@ -1,6 +1,6 @@
 import { CosmosClient, Container, Database } from '@azure/cosmos';
-import { Phrase, UserProfile, BingoCard, BingoProgress, RegistrationGuess, GuessSettings } from './types';
-import { GUESS_SETTINGS_ID, toDateKey } from './guess';
+import { Phrase, UserProfile, BingoCard, BingoProgress, ConferenceGuess, ConferenceGuessSettings } from './types';
+import { CONFERENCE_GUESS_SETTINGS_ID } from './conferenceGuess';
 import { logError, logWarn } from './logger';
 
 let client: CosmosClient | null = null;
@@ -47,7 +47,7 @@ async function ensureCosmosResources(): Promise<void> {
       process.env.COSMOS_CONTAINER_USERS ?? 'users',
       process.env.COSMOS_CONTAINER_CARDS ?? 'cards',
       process.env.COSMOS_CONTAINER_PROGRESS ?? 'progress',
-      process.env.COSMOS_CONTAINER_GUESSES ?? 'guesses',
+      process.env.COSMOS_CONTAINER_CONFERENCE_GUESSES ?? 'conference-guesses',
       process.env.COSMOS_CONTAINER_SETTINGS ?? 'settings',
     ];
 
@@ -88,8 +88,8 @@ function progressContainer(): Container {
   return getContainer(process.env.COSMOS_CONTAINER_PROGRESS ?? 'progress');
 }
 
-function guessesContainer(): Container {
-  return getContainer(process.env.COSMOS_CONTAINER_GUESSES ?? 'guesses');
+function conferenceGuessesContainer(): Container {
+  return getContainer(process.env.COSMOS_CONTAINER_CONFERENCE_GUESSES ?? 'conference-guesses');
 }
 
 function settingsContainer(): Container {
@@ -229,75 +229,111 @@ export async function getAllProgress(): Promise<BingoProgress[]> {
   return resources;
 }
 
-// --- Registration guesses ---
+// --- Conference guesses ---
 
-export class GuessAlreadyExistsError extends Error {
-  constructor() {
-    super('User has already made a guess');
-    this.name = 'GuessAlreadyExistsError';
-  }
+function errorCode(error: unknown): number | undefined {
+  return (error as { code?: number }).code;
 }
 
-export async function getAllGuesses(): Promise<RegistrationGuess[]> {
+export async function getAllConferenceGuesses(): Promise<ConferenceGuess[]> {
   await ensureCosmosResources();
-  const { resources } = await guessesContainer().items.readAll<RegistrationGuess>().fetchAll();
+  const { resources } = await conferenceGuessesContainer().items.readAll<ConferenceGuess>().fetchAll();
   return resources;
 }
 
-/** Creates the user's guess. Throws GuessAlreadyExistsError if one already exists (id = userId). */
-export async function createGuess(guess: RegistrationGuess): Promise<RegistrationGuess> {
+/**
+ * Creates or updates the user's single guess, appending every submission to its history.
+ * Uses optimistic concurrency so concurrent submissions never drop history entries.
+ */
+export async function saveConferenceGuess(
+  user: { userId: string; displayName: string; email: string },
+  location: string,
+): Promise<ConferenceGuess> {
   await ensureCosmosResources();
-  try {
-    const { resource } = await guessesContainer().items.create<RegistrationGuess>(guess);
-    if (!resource) {
-      throw new Error('Failed to create guess');
+  const container = conferenceGuessesContainer();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const now = new Date().toISOString();
+    const entry = { location, submittedAt: now };
+
+    let existing: ConferenceGuess | undefined;
+    let etag: string | undefined;
+    try {
+      const response = await container.item(user.userId, user.userId).read<ConferenceGuess>();
+      existing = response.resource;
+      etag = response.etag;
+    } catch (error) {
+      if (errorCode(error) !== 404) throw error;
     }
-    return resource;
-  } catch (error) {
-    if ((error as { code?: number }).code === 409) {
-      throw new GuessAlreadyExistsError();
+
+    try {
+      if (existing && existing.location === location) {
+        return existing;
+      }
+      if (!existing) {
+        const guess: ConferenceGuess = {
+          id: user.userId,
+          userId: user.userId,
+          displayName: user.displayName,
+          email: user.email,
+          location,
+          createdAt: now,
+          updatedAt: now,
+          history: [entry],
+        };
+        const { resource } = await container.items.create<ConferenceGuess>(guess);
+        return resource ?? guess;
+      }
+
+      const updated: ConferenceGuess = {
+        ...existing,
+        displayName: user.displayName,
+        email: user.email,
+        location,
+        updatedAt: now,
+        history: [...(existing.history ?? []), entry],
+      };
+      const { resource } = await container
+        .item(user.userId, user.userId)
+        .replace<ConferenceGuess>(updated, { accessCondition: { type: 'IfMatch', condition: etag! } });
+      return resource ?? updated;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === 409 || code === 412) continue;
+      logError('Conference guess save failed', error, { userId: user.userId });
+      throw error;
     }
-    logError('Guess create failed', error, { userId: guess.userId });
-    throw error;
   }
+
+  throw new Error('Could not save guess due to concurrent updates; please retry');
 }
 
-/** Returns the guess settings, creating them (window starting today UTC) on first access. */
-export async function getGuessSettings(): Promise<GuessSettings> {
+export async function getConferenceGuessSettings(): Promise<ConferenceGuessSettings> {
   await ensureCosmosResources();
   try {
-    const { resource } = await settingsContainer().item(GUESS_SETTINGS_ID, GUESS_SETTINGS_ID).read<GuessSettings>();
+    const { resource } = await settingsContainer()
+      .item(CONFERENCE_GUESS_SETTINGS_ID, CONFERENCE_GUESS_SETTINGS_ID)
+      .read<ConferenceGuessSettings>();
     if (resource) return resource;
   } catch (error) {
-    if ((error as { code?: number }).code !== 404) {
-      logWarn('Failed to load guess settings', { error: String(error) });
+    if (errorCode(error) !== 404) {
+      logWarn('Failed to load conference guess settings', { error: String(error) });
     }
   }
-  const now = new Date();
-  const defaults: GuessSettings = {
-    id: GUESS_SETTINGS_ID,
-    windowStart: toDateKey(now),
-    correctAt: null,
-    updatedAt: now.toISOString(),
-  };
-  try {
-    const { resource } = await settingsContainer().items.create<GuessSettings>(defaults);
-    return resource ?? defaults;
-  } catch (error) {
-    if ((error as { code?: number }).code === 409) {
-      const { resource } = await settingsContainer().item(GUESS_SETTINGS_ID, GUESS_SETTINGS_ID).read<GuessSettings>();
-      if (resource) return resource;
-    }
-    throw error;
-  }
+  return { id: CONFERENCE_GUESS_SETTINGS_ID, correctAnswer: null, updatedAt: new Date().toISOString() };
 }
 
-export async function upsertGuessSettings(settings: GuessSettings): Promise<GuessSettings> {
+export async function setConferenceCorrectAnswer(correctAnswer: string | null): Promise<ConferenceGuessSettings> {
   await ensureCosmosResources();
-  const { resource } = await settingsContainer().items.upsert<GuessSettings>(settings);
+  const settings: ConferenceGuessSettings = {
+    id: CONFERENCE_GUESS_SETTINGS_ID,
+    correctAnswer,
+    updatedAt: new Date().toISOString(),
+  };
+  const { resource } = await settingsContainer().items.upsert<ConferenceGuessSettings>(settings);
   if (!resource) {
-    const error = new Error('Failed to upsert guess settings');
-    logError('Guess settings upsert returned empty resource', error);
+    const error = new Error('Failed to save conference guess settings');
+    logError('Conference guess settings upsert returned empty resource', error);
     throw error;
   }
   return resource;
