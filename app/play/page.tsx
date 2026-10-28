@@ -139,6 +139,7 @@ export default function PlayPage() {
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">🎯 MVP Summit Bingo</h1>
           <div className="flex items-center gap-3">
             <a href="/phrases" className="text-sm text-blue-600 hover:underline font-medium">Phrases</a>
+            <a href="/guess" className="text-sm text-blue-600 hover:underline font-medium">Guess</a>
             {user?.roles?.includes('admin') && (
               <a href="/admin" className="text-sm text-blue-600 hover:underline font-medium">Admin</a>
             )}

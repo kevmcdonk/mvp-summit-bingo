@@ -40,6 +40,27 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
+export interface RegistrationGuess {
+  id: string; // user id — one guess per user
+  userId: string;
+  displayName: string;
+  guessAt: string; // ISO UTC instant
+  createdAt: string;
+}
+
+export interface GuessSettings {
+  id: string;
+  windowStart: string; // YYYY-MM-DD (UTC) — first day of the 14-day calendar
+  correctAt: string | null; // ISO UTC instant set by admin
+  updatedAt: string;
+}
+
+export interface PublicGuess {
+  displayName: string;
+  guessAt: string;
+  isMine: boolean;
+}
+
 export interface CardWithProgress {
   card: BingoCard;
   progress: BingoProgress;

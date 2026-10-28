@@ -1,9 +1,10 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { redirect } from 'next/navigation';
-import { UserStatusSummary, Phrase } from '@/lib/types';
+import { UserStatusSummary, Phrase, GuessSettings } from '@/lib/types';
+import { buildGuessInstant, toDateKey } from '@/lib/guess';
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -11,9 +12,27 @@ export default function AdminPage() {
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [newPhraseText, setNewPhraseText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [guessSettings, setGuessSettings] = useState<GuessSettings | null>(null);
+  const [correctDate, setCorrectDate] = useState('');
+  const [correctHour, setCorrectHour] = useState(0);
+  const [windowStart, setWindowStart] = useState('');
+  const [guessMessage, setGuessMessage] = useState<string | null>(null);
 
   const user = session?.user as { roles?: string[] } | undefined;
   const isAdmin = user?.roles?.includes('admin');
+
+  const applyGuessSettings = useCallback((settings: GuessSettings) => {
+    setGuessSettings(settings);
+    setWindowStart(settings.windowStart);
+    if (settings.correctAt) {
+      const d = new Date(settings.correctAt);
+      setCorrectDate(toDateKey(d));
+      setCorrectHour(d.getUTCHours());
+    } else {
+      setCorrectDate(settings.windowStart);
+      setCorrectHour(0);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -29,13 +48,32 @@ export default function AdminPage() {
       Promise.all([
         fetch('/api/admin/status').then((r) => r.json()),
         fetch('/api/admin/phrases').then((r) => r.json()),
-      ]).then(([statusData, phraseData]) => {
+        fetch('/api/admin/guess-settings').then((r) => r.json()),
+      ]).then(([statusData, phraseData, settings]) => {
         setUsers(statusData.users ?? []);
         setPhrases(phraseData.phrases ?? []);
+        applyGuessSettings(settings);
         setLoading(false);
       });
     }
-  }, [status, isAdmin]);
+  }, [status, isAdmin, applyGuessSettings]);
+
+
+  const saveGuessSettings = async (body: Record<string, unknown>, message: string) => {
+    setGuessMessage(null);
+    const res = await fetch('/api/admin/guess-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setGuessMessage(json.error ?? 'Failed to save');
+      return;
+    }
+    applyGuessSettings(json);
+    setGuessMessage(message);
+  };
 
   const handleAddPhrase = async () => {
     if (!newPhraseText.trim()) return;
@@ -79,6 +117,7 @@ export default function AdminPage() {
           <h1 className="text-2xl font-black">🔧 Admin Dashboard</h1>
           <div className="flex gap-3">
             <a href="/phrases" className="text-sm text-blue-600 hover:underline">Phrases</a>
+            <a href="/guess" className="text-sm text-blue-600 hover:underline">Guess</a>
             <a href="/play" className="text-sm text-blue-600 hover:underline">Play</a>
             <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-gray-600">Sign Out</button>
           </div>
@@ -120,6 +159,81 @@ export default function AdminPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        {/* Registration Guess */}
+        <section>
+          <h2 className="text-xl font-bold mb-4">Registration Guess</h2>
+          <div className="bg-white rounded-xl shadow p-4 space-y-4">
+            <p className="text-sm text-gray-600">
+              Current registration time:{' '}
+              <strong>
+                {guessSettings?.correctAt
+                  ? new Date(guessSettings.correctAt).toUTCString()
+                  : 'Not set (guessing open)'}
+              </strong>
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col text-sm">
+                <span className="font-medium mb-1">Date (UTC)</span>
+                <input
+                  type="date"
+                  value={correctDate}
+                  onChange={(e) => setCorrectDate(e.target.value)}
+                  className="px-3 py-2 border rounded-lg"
+                />
+              </label>
+              <label className="flex flex-col text-sm">
+                <span className="font-medium mb-1">Hour (UTC)</span>
+                <select
+                  value={correctHour}
+                  onChange={(e) => setCorrectHour(Number(e.target.value))}
+                  className="px-3 py-2 border rounded-lg"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={() => correctDate && saveGuessSettings(
+                  { correctAt: buildGuessInstant(correctDate, correctHour) },
+                  'Registration time saved — guessing is now closed.',
+                )}
+                disabled={!correctDate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+              >
+                Set correct time
+              </button>
+              {guessSettings?.correctAt && (
+                <button
+                  onClick={() => saveGuessSettings({ correctAt: null }, 'Registration time cleared — guessing reopened.')}
+                  className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-end gap-2 border-t pt-4">
+              <label className="flex flex-col text-sm">
+                <span className="font-medium mb-1">Calendar start (first of 14 days, UTC)</span>
+                <input
+                  type="date"
+                  value={windowStart}
+                  onChange={(e) => setWindowStart(e.target.value)}
+                  className="px-3 py-2 border rounded-lg"
+                />
+              </label>
+              <button
+                onClick={() => windowStart && saveGuessSettings({ windowStart }, 'Calendar start updated.')}
+                disabled={!windowStart}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+              >
+                Update calendar
+              </button>
+            </div>
+            {guessMessage && <p role="status" className="text-sm text-gray-700">{guessMessage}</p>}
           </div>
         </section>
 

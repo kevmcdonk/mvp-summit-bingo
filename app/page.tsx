@@ -15,7 +15,7 @@ export default async function HomePage() {
       <div className="text-center px-6 py-12 rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl max-w-md w-full mx-4">
         <div className="text-6xl mb-4">🎯</div>
         <h1 className="text-4xl font-black text-white mb-2 tracking-tight">MVP Summit Bingo</h1>
-        <p className="text-blue-200 mb-8 text-lg">Sign in with your Microsoft account to play!</p>
+        <p className="text-blue-200 mb-8 text-lg">Sign in to play!</p>
         <SignInButton />
         <div className="mt-4">
 

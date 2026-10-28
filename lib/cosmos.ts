@@ -1,5 +1,6 @@
 import { CosmosClient, Container, Database } from '@azure/cosmos';
-import { Phrase, UserProfile, BingoCard, BingoProgress } from './types';
+import { Phrase, UserProfile, BingoCard, BingoProgress, RegistrationGuess, GuessSettings } from './types';
+import { GUESS_SETTINGS_ID, toDateKey } from './guess';
 import { logError, logWarn } from './logger';
 
 let client: CosmosClient | null = null;
@@ -46,6 +47,8 @@ async function ensureCosmosResources(): Promise<void> {
       process.env.COSMOS_CONTAINER_USERS ?? 'users',
       process.env.COSMOS_CONTAINER_CARDS ?? 'cards',
       process.env.COSMOS_CONTAINER_PROGRESS ?? 'progress',
+      process.env.COSMOS_CONTAINER_GUESSES ?? 'guesses',
+      process.env.COSMOS_CONTAINER_SETTINGS ?? 'settings',
     ];
 
     await Promise.all(
@@ -83,6 +86,14 @@ function cardsContainer(): Container {
 
 function progressContainer(): Container {
   return getContainer(process.env.COSMOS_CONTAINER_PROGRESS ?? 'progress');
+}
+
+function guessesContainer(): Container {
+  return getContainer(process.env.COSMOS_CONTAINER_GUESSES ?? 'guesses');
+}
+
+function settingsContainer(): Container {
+  return getContainer(process.env.COSMOS_CONTAINER_SETTINGS ?? 'settings');
 }
 
 // --- Phrases ---
@@ -216,4 +227,78 @@ export async function getAllProgress(): Promise<BingoProgress[]> {
   await ensureCosmosResources();
   const { resources } = await progressContainer().items.readAll<BingoProgress>().fetchAll();
   return resources;
+}
+
+// --- Registration guesses ---
+
+export class GuessAlreadyExistsError extends Error {
+  constructor() {
+    super('User has already made a guess');
+    this.name = 'GuessAlreadyExistsError';
+  }
+}
+
+export async function getAllGuesses(): Promise<RegistrationGuess[]> {
+  await ensureCosmosResources();
+  const { resources } = await guessesContainer().items.readAll<RegistrationGuess>().fetchAll();
+  return resources;
+}
+
+/** Creates the user's guess. Throws GuessAlreadyExistsError if one already exists (id = userId). */
+export async function createGuess(guess: RegistrationGuess): Promise<RegistrationGuess> {
+  await ensureCosmosResources();
+  try {
+    const { resource } = await guessesContainer().items.create<RegistrationGuess>(guess);
+    if (!resource) {
+      throw new Error('Failed to create guess');
+    }
+    return resource;
+  } catch (error) {
+    if ((error as { code?: number }).code === 409) {
+      throw new GuessAlreadyExistsError();
+    }
+    logError('Guess create failed', error, { userId: guess.userId });
+    throw error;
+  }
+}
+
+/** Returns the guess settings, creating them (window starting today UTC) on first access. */
+export async function getGuessSettings(): Promise<GuessSettings> {
+  await ensureCosmosResources();
+  try {
+    const { resource } = await settingsContainer().item(GUESS_SETTINGS_ID, GUESS_SETTINGS_ID).read<GuessSettings>();
+    if (resource) return resource;
+  } catch (error) {
+    if ((error as { code?: number }).code !== 404) {
+      logWarn('Failed to load guess settings', { error: String(error) });
+    }
+  }
+  const now = new Date();
+  const defaults: GuessSettings = {
+    id: GUESS_SETTINGS_ID,
+    windowStart: toDateKey(now),
+    correctAt: null,
+    updatedAt: now.toISOString(),
+  };
+  try {
+    const { resource } = await settingsContainer().items.create<GuessSettings>(defaults);
+    return resource ?? defaults;
+  } catch (error) {
+    if ((error as { code?: number }).code === 409) {
+      const { resource } = await settingsContainer().item(GUESS_SETTINGS_ID, GUESS_SETTINGS_ID).read<GuessSettings>();
+      if (resource) return resource;
+    }
+    throw error;
+  }
+}
+
+export async function upsertGuessSettings(settings: GuessSettings): Promise<GuessSettings> {
+  await ensureCosmosResources();
+  const { resource } = await settingsContainer().items.upsert<GuessSettings>(settings);
+  if (!resource) {
+    const error = new Error('Failed to upsert guess settings');
+    logError('Guess settings upsert returned empty resource', error);
+    throw error;
+  }
+  return resource;
 }
