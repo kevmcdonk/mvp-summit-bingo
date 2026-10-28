@@ -104,6 +104,9 @@ Copy the account URI and primary key from **Keys** in the Azure Portal into `.en
 
 `/guess` lets each signed-in user submit a free-text guess for where the next ESPC conference will be held. Each user has a single guess which they can change until the answer is revealed; every submission is kept in a `history` array on the user's document so admins can audit changes. Admins see all guesses (with expandable history) and set the correct answer from the **ESPC Location Guesses** section of `/admin`. Setting the answer locks guessing and highlights matching guesses (case-, accent- and punctuation-insensitive).
 
+### Resetting the game
+
+Admins can wipe all players from `/admin` using **Clear all users & cards** (above the User Progress table). This deletes every document in the `users`, `cards` and `progress` containers after the admin types `DELETE ALL USERS` to confirm. Phrases, ESPC guesses and settings are kept; players receive a fresh random card on their next visit.
 ### 4. Run the development server
 
 ```bash

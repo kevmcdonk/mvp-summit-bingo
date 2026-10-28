@@ -3,6 +3,7 @@
 import { useSession, signOut } from 'next-auth/react';
 import { Fragment, useEffect, useState, useMemo } from 'react';
 import { MAX_GUESS_LENGTH } from '@/lib/conferenceGuess';
+import { RESET_CONFIRMATION } from '@/lib/admin';
 import { redirect } from 'next/navigation';
 import { UserStatusSummary, Phrase, AdminConferenceGuess } from '@/lib/types';
 
@@ -28,6 +29,10 @@ export default function AdminPage() {
   const [answerInput, setAnswerInput] = useState('');
   const [guessMessage, setGuessMessage] = useState<string | null>(null);
   const [expandedGuess, setExpandedGuess] = useState<string | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const user = session?.user as { roles?: string[] } | undefined;
   const isAdmin = user?.roles?.includes('admin');
@@ -109,6 +114,31 @@ export default function AdminPage() {
     setGuessMessage(answer ? 'Correct answer saved — guessing is now closed.' : 'Answer cleared — guessing reopened.');
   };
 
+  const handleResetUsers = async () => {
+    if (resetConfirm !== RESET_CONFIRMATION || resetting) return;
+    setResetting(true);
+    setResetMessage(null);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: resetConfirm }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Reset failed');
+      const { users: u, cards, progress } = json.deleted;
+      setUsers([]);
+      setPhraseCounts({});
+      setResetOpen(false);
+      setResetConfirm('');
+      setResetMessage(`Deleted ${u} user${u !== 1 ? 's' : ''}, ${cards} card${cards !== 1 ? 's' : ''} and ${progress} progress record${progress !== 1 ? 's' : ''}.`);
+    } catch (err) {
+      setResetMessage(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleAddPhrase = async () => {
     if (!newPhraseText.trim()) return;
     const res = await fetch('/api/admin/phrases', {
@@ -161,7 +191,56 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         {/* User Status Table */}
         <section>
-          <h2 className="text-xl font-bold mb-4">User Progress</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h2 className="text-xl font-bold">User Progress</h2>
+            {!resetOpen && (
+              <button
+                type="button"
+                onClick={() => { setResetOpen(true); setResetMessage(null); }}
+                className="px-3 py-2 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium"
+              >
+                🗑️ Clear all users &amp; cards
+              </button>
+            )}
+          </div>
+          {resetOpen && (
+            <div role="alertdialog" aria-labelledby="reset-title" className="mb-4 rounded-xl border-2 border-red-300 bg-red-50 p-4 space-y-3">
+              <h3 id="reset-title" className="font-bold text-red-800">Clear all users and cards?</h3>
+              <p className="text-sm text-red-800">
+                This permanently deletes every user profile, bingo card and marked square ({users.length} user{users.length !== 1 ? 's' : ''}).
+                Phrases and ESPC guesses are kept. Users get a fresh random card next time they open the game.
+              </p>
+              <label className="block text-sm text-red-900">
+                Type <code className="font-mono font-bold">{RESET_CONFIRMATION}</code> to confirm:
+                <input
+                  type="text"
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  autoComplete="off"
+                  className="mt-1 block w-full sm:w-80 px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetUsers}
+                  disabled={resetConfirm !== RESET_CONFIRMATION || resetting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:opacity-50"
+                >
+                  {resetting ? 'Deleting…' : 'Delete everything'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setResetOpen(false); setResetConfirm(''); }}
+                  disabled={resetting}
+                  className="px-4 py-2 border rounded-lg bg-white hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {resetMessage && <p role="status" className="mb-4 text-sm font-medium text-gray-700">{resetMessage}</p>}
           <div className="bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">

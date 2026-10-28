@@ -338,3 +338,44 @@ export async function setConferenceCorrectAnswer(correctAnswer: string | null): 
   }
   return resource;
 }
+
+// --- Reset ---
+
+async function deleteAllItems(container: Container): Promise<number> {
+  const { resources } = await container.items
+    .query<{ id: string }>('SELECT c.id FROM c')
+    .fetchAll();
+  const batchSize = 20;
+  let deleted = 0;
+  for (let i = 0; i < resources.length; i += batchSize) {
+    const batch = resources.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async ({ id }) => {
+        try {
+          // Every container is partitioned on /id.
+          await container.item(id, id).delete();
+          deleted++;
+        } catch (error) {
+          if ((error as { code?: number }).code !== 404) throw error;
+        }
+      }),
+    );
+  }
+  return deleted;
+}
+
+/** Deletes every user profile, bingo card and progress record. Phrases and guesses are untouched. */
+export async function deleteAllUsersAndCards(): Promise<{ users: number; cards: number; progress: number }> {
+  await ensureCosmosResources();
+  try {
+    const [users, cards, progress] = await Promise.all([
+      deleteAllItems(usersContainer()),
+      deleteAllItems(cardsContainer()),
+      deleteAllItems(progressContainer()),
+    ]);
+    return { users, cards, progress };
+  } catch (error) {
+    logError('Failed to delete all users and cards', error);
+    throw error;
+  }
+}
