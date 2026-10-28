@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getAllConferenceGuesses, getConferenceGuessSettings, setConferenceCorrectAnswer } from '@/lib/cosmos';
+import { deleteAllConferenceGuesses, deleteConferenceGuess, getAllConferenceGuesses, getConferenceGuessSettings, setConferenceCorrectAnswer } from '@/lib/cosmos';
 import { isCorrectGuess, MAX_GUESS_LENGTH, sanitizeLocation } from '@/lib/conferenceGuess';
+import { logWarn } from '@/lib/logger';
+
+async function getAdmin() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { id?: string; email?: string | null; roles?: string[] } | undefined;
+  return user?.roles?.includes('admin') ? user : null;
+}
 
 async function checkAdmin() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return false;
-  const user = session.user as { roles?: string[] };
-  return user.roles?.includes('admin') ?? false;
+  return (await getAdmin()) !== null;
 }
 
 /** Admin view: every guess including full submission history. */
@@ -61,4 +65,36 @@ export async function PUT(request: NextRequest) {
   }
 
   return NextResponse.json(await setConferenceCorrectAnswer(correctAnswer));
+}
+
+/**
+ * Deletes guesses (including their history).
+ * ?userId=<id> deletes one user's guess; ?all=true deletes every guess.
+ */
+export async function DELETE(request: NextRequest) {
+  const admin = await getAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const all = searchParams.get('all') === 'true';
+
+  if (all) {
+    logWarn('Admin deleting all conference guesses', { adminId: admin.id, adminEmail: admin.email });
+    const deleted = await deleteAllConferenceGuesses();
+    return NextResponse.json({ deleted });
+  }
+
+  if (!userId) {
+    return NextResponse.json({ error: 'userId or all=true query parameter is required' }, { status: 400 });
+  }
+
+  logWarn('Admin deleting conference guess', { adminId: admin.id, adminEmail: admin.email, userId });
+  const found = await deleteConferenceGuess(userId);
+  if (!found) {
+    return NextResponse.json({ error: 'Guess not found' }, { status: 404 });
+  }
+  return NextResponse.json({ deleted: 1 });
 }

@@ -114,6 +114,34 @@ export default function AdminPage() {
     setGuessMessage(answer ? 'Correct answer saved — guessing is now closed.' : 'Answer cleared — guessing reopened.');
   };
 
+  const handleDeleteGuess = async (g: AdminConferenceGuess) => {
+    if (!window.confirm(`Delete ${g.displayName}'s guess "${g.location}" and its history? They will be able to guess again.`)) return;
+    setGuessMessage(null);
+    const res = await fetch(`/api/admin/conference-guesses?userId=${encodeURIComponent(g.userId)}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) {
+      const json = await res.json().catch(() => ({}));
+      setGuessMessage(json.error ?? 'Failed to delete guess');
+      return;
+    }
+    setConferenceGuesses((prev) => prev.filter((x) => x.userId !== g.userId));
+    if (expandedGuess === g.userId) setExpandedGuess(null);
+    setGuessMessage(`Deleted ${g.displayName}'s guess.`);
+  };
+
+  const handleDeleteAllGuesses = async () => {
+    if (!window.confirm(`Delete ALL ${conferenceGuesses.length} ESPC guesses and their history? This cannot be undone.`)) return;
+    setGuessMessage(null);
+    const res = await fetch('/api/admin/conference-guesses?all=true', { method: 'DELETE' });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setGuessMessage(json.error ?? 'Failed to delete guesses');
+      return;
+    }
+    setConferenceGuesses([]);
+    setExpandedGuess(null);
+    setGuessMessage(`Deleted ${json.deleted} guess${json.deleted !== 1 ? 'es' : ''}.`);
+  };
+
   const handleResetUsers = async () => {
     if (resetConfirm !== RESET_CONFIRMATION || resetting) return;
     setResetting(true);
@@ -301,7 +329,18 @@ export default function AdminPage() {
 
         {/* ESPC Location Guesses */}
         <section>
-          <h2 className="text-xl font-bold mb-4">ESPC Location Guesses ({conferenceGuesses.length})</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h2 className="text-xl font-bold">ESPC Location Guesses ({conferenceGuesses.length})</h2>
+            {conferenceGuesses.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteAllGuesses}
+                className="px-3 py-2 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium"
+              >
+                🗑️ Delete all guesses
+              </button>
+            )}
+          </div>
           <div className="bg-white rounded-xl shadow p-4 space-y-3 mb-4">
             <p className="text-sm text-gray-600">
               Correct answer: <strong>{correctAnswer ?? 'Not set (guessing open)'}</strong>
@@ -350,6 +389,7 @@ export default function AdminPage() {
                   <th className="px-4 py-3 text-left font-semibold">Current guess</th>
                   <th className="px-4 py-3 text-center font-semibold">Submissions</th>
                   <th className="px-4 py-3 text-left font-semibold">First / last submitted</th>
+                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,10 +417,20 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-xs text-gray-500">
                           {new Date(g.createdAt).toLocaleString()}<br />{new Date(g.updatedAt).toLocaleString()}
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGuess(g)}
+                            aria-label={`Delete guess by ${g.displayName}`}
+                            className="px-3 py-1 text-xs bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                       {expanded && (
                         <tr className="border-b bg-gray-50">
-                          <td colSpan={4} className="px-6 py-3">
+                          <td colSpan={5} className="px-6 py-3">
                             <ol className="space-y-1 text-xs">
                               {g.history.map((h, i) => (
                                 <li key={i} className="flex gap-4">
@@ -396,7 +446,7 @@ export default function AdminPage() {
                   );
                 })}
                 {conferenceGuesses.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No guesses yet</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">No guesses yet</td></tr>
                 )}
               </tbody>
             </table>

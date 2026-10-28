@@ -102,7 +102,7 @@ Copy the account URI and primary key from **Keys** in the Azure Portal into `.en
 
 ### ESPC location guess page
 
-`/guess` lets each signed-in user submit a free-text guess for where the next ESPC conference will be held. Each user has a single guess which they can change until the answer is revealed; every submission is kept in a `history` array on the user's document so admins can audit changes. Admins see all guesses (with expandable history) and set the correct answer from the **ESPC Location Guesses** section of `/admin`. Setting the answer locks guessing and highlights matching guesses (case-, accent- and punctuation-insensitive).
+`/guess` lets each signed-in user submit a free-text guess for where the next ESPC conference will be held. Each user has a single guess which they can change until the answer is revealed; every submission is kept in a `history` array on the user's document so admins can audit changes. Admins see all guesses (with expandable history) and set the correct answer from the **ESPC Location Guesses** section of `/admin`. Setting the answer locks guessing and highlights matching guesses (case-, accent- and punctuation-insensitive). Admins can also delete an individual guess (with its history), letting that user guess again, or delete all guesses.
 
 ### Resetting the game
 

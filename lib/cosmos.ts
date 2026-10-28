@@ -379,3 +379,20 @@ export async function deleteAllUsersAndCards(): Promise<{ users: number; cards: 
     throw error;
   }
 }
+
+export async function deleteConferenceGuess(userId: string): Promise<boolean> {
+  await ensureCosmosResources();
+  try {
+    await conferenceGuessesContainer().item(userId, userId).delete();
+    return true;
+  } catch (error) {
+    if ((error as { code?: number }).code === 404) return false;
+    logError('Failed to delete conference guess', error, { userId });
+    throw error;
+  }
+}
+
+export async function deleteAllConferenceGuesses(): Promise<number> {
+  await ensureCosmosResources();
+  return deleteAllItems(conferenceGuessesContainer());
+}
