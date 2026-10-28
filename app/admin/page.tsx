@@ -167,6 +167,25 @@ export default function AdminPage() {
     }
   };
 
+  const handleResetUserProgress = async (u: UserStatusSummary) => {
+    if (!window.confirm(`Reset ${u.displayName || u.email}'s progress? Their card and marked squares will be deleted and they'll get a fresh random card next time they play.`)) return;
+    setResetMessage(null);
+    const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(u.userId)}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setResetMessage(json.error ?? 'Failed to reset user progress');
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.userId === u.userId
+      ? { ...x, markedCount: 0, linesCompleted: 0, hasHouse: false, hasBingo: false, lastActivity: new Date().toISOString() }
+      : x)));
+    fetch('/api/admin/phrase-counts')
+      .then((r) => r.json())
+      .then((c) => setPhraseCounts(c.phraseCounts ?? {}))
+      .catch(() => {});
+    setResetMessage(`Reset ${u.displayName || u.email}'s card and progress.`);
+  };
+
   const handleAddPhrase = async () => {
     if (!newPhraseText.trim()) return;
     const res = await fetch('/api/admin/phrases', {
@@ -304,6 +323,7 @@ export default function AdminPage() {
                       Last Activity<SortIndicator field="lastActivity" sortField={sortField} sortDirection={sortDirection} />
                     </button>
                   </th>
+                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -318,10 +338,20 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-center">{u.hasHouse ? '🏠' : '—'}</td>
                     <td className="px-4 py-3 text-center">{u.hasBingo ? '🎉' : '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(u.lastActivity).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleResetUserProgress(u)}
+                        aria-label={`Reset progress for ${u.displayName || u.email}`}
+                        className="px-3 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      >
+                        Reset progress
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {users.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">No users yet</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No users yet</td></tr>
                 )}
               </tbody>
             </table>

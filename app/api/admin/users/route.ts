@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { deleteAllUsersAndCards } from '@/lib/cosmos';
+import { deleteAllUsersAndCards, deleteUserCardAndProgress } from '@/lib/cosmos';
 import { logWarn } from '@/lib/logger';
 import { RESET_CONFIRMATION } from '@/lib/admin';
 
 /**
- * Deletes every user profile, bingo card and progress record.
+ * `?userId=<id>`: deletes that user's bingo card and progress (profile kept; fresh card on next visit).
+ * Otherwise deletes every user profile, bingo card and progress record.
  * Body: { confirm: "DELETE ALL USERS" } — guards against accidental calls.
  */
 export async function DELETE(request: NextRequest) {
@@ -14,6 +15,16 @@ export async function DELETE(request: NextRequest) {
   const user = session?.user as { id?: string; email?: string | null; roles?: string[] } | undefined;
   if (!user?.roles?.includes('admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const targetUserId = request.nextUrl.searchParams.get('userId');
+  if (targetUserId !== null) {
+    if (!targetUserId.trim()) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+    logWarn('Admin reset: deleting user card and progress', { adminId: user.id, adminEmail: user.email, targetUserId });
+    const deleted = await deleteUserCardAndProgress(targetUserId);
+    return NextResponse.json({ deleted });
   }
 
   let body: unknown;

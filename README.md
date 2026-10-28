@@ -107,6 +107,8 @@ Copy the account URI and primary key from **Keys** in the Azure Portal into `.en
 ### Resetting the game
 
 Admins can wipe all players from `/admin` using **Clear all users & cards** (above the User Progress table). This deletes every document in the `users`, `cards` and `progress` containers after the admin types `DELETE ALL USERS` to confirm. Phrases, ESPC guesses and settings are kept; players receive a fresh random card on their next visit.
+
+To reset a single player, use the **Reset progress** button on their row in the User Progress table (`DELETE /api/admin/users?userId=<id>`). This deletes that user's card and progress but keeps their profile, so they stay listed and get a fresh random card next time they play.
 ### 4. Run the development server
 
 ```bash

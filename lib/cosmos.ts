@@ -380,6 +380,40 @@ export async function deleteAllUsersAndCards(): Promise<{ users: number; cards: 
   }
 }
 
+async function deleteItemsForUser(container: Container, userId: string): Promise<number> {
+  const { resources } = await container.items
+    .query<{ id: string }>({
+      query: 'SELECT c.id FROM c WHERE c.userId = @userId',
+      parameters: [{ name: '@userId', value: userId }],
+    })
+    .fetchAll();
+  let deleted = 0;
+  for (const { id } of resources) {
+    try {
+      await container.item(id, id).delete();
+      deleted++;
+    } catch (error) {
+      if ((error as { code?: number }).code !== 404) throw error;
+    }
+  }
+  return deleted;
+}
+
+/** Deletes one user's bingo card and progress; their profile is kept so a fresh card is generated on next visit. */
+export async function deleteUserCardAndProgress(userId: string): Promise<{ cards: number; progress: number }> {
+  await ensureCosmosResources();
+  try {
+    const [cards, progress] = await Promise.all([
+      deleteItemsForUser(cardsContainer(), userId),
+      deleteItemsForUser(progressContainer(), userId),
+    ]);
+    return { cards, progress };
+  } catch (error) {
+    logError('Failed to delete user card and progress', error, { userId });
+    throw error;
+  }
+}
+
 export async function deleteConferenceGuess(userId: string): Promise<boolean> {
   await ensureCosmosResources();
   try {
